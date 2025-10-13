@@ -39,11 +39,14 @@ login_url = 'https://cooperation.ceic.com/login/index?client_id=oauth-neep&redir
 excel_url = 'https://www.neep.shop/html/portal/notice.html?type=enquiryOrderAnnc&nodeurl=callback_list_enquiry_order&noticeMoreUrl=https://gd-prod.cn-beijing.oss.aliyuncs.com/upload/cms/column/inquireListOne/index.html&pageTag=undefined&menu_code=&parent_menu_code=&root_menu_code='
 pdf_url = 'https://www.neep.shop/dist/index.html#/purchaserNoticeIndex#/purchaserNoticeIndex?autoId=290201'
 fabu_time_file = 'public_time.txt'
+create_time_file = 'create_time.txt'
 logger = setup_logging()
 
-api_key = "fastgpt-uktl6lsmWuE6ocGg2adSC2CXPWlB2TLXp87LOHCxq9zRfljK4sPO"
+# api_key = "fastgpt-uktl6lsmWuE6ocGg2adSC2CXPWlB2TLXp87LOHCxq9zRfljK4sPO"
+api_key2 = "fastgpt-pOQv1rtr9MM8jPyuciko61Nb5NaW7T6K9jzp6bCwrth9mrFjT2WUczb87VDpMtUx"
 base_url = "http://192.168.50.81:3100/ragai"  # 例如: "https://your-domain.com"
-workflow_id = "68cbc237fd26a9e5197e6730"
+# workflow_id = "68cbc237fd26a9e5197e6730"
+workflow_id2 = "68e74de6fd26a9e519813e3c"
 chat_id = "chat_id"  # 你可以生成一个UUID或使用固定值进行测试
 # PDF_FILE_PATH = "宁夏煤业清水营煤矿2025年数字化智能运维管理平台研究与应用技术服务询价采购-商务文件.pdf"
 # ZIP_FILE_PATH = "宁夏煤业清水营煤矿2025年数字化智能运维管理平台研究与应用技术服务询价采购-商务文件.zip"
@@ -216,10 +219,33 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                             write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
                                         baojiajiezhishijian, fabushijian, keyword, '是')
                         else:
-                            logger.info("页面标题不包含'报编'，跳过下载")
+                            # logger.info("页面标题不包含'报编'，跳过下载")
+                            # write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
+                            #             baojiajiezhishijian, fabushijian, keyword, '否')
+                            # continue
+                            logger.info("页面B正确加载")
+                            try:
+                                page3.get_by_role("button", name="关闭").wait_for(state="visible", timeout=10000)
+                                page3.get_by_role("button", name="关闭").click()
+                                logger.info("已关闭弹窗")
+                            except PlaywrightTimeoutError:
+                                logger.info("页面没有关闭按钮，直接下载")
+
+                            download_button = page3.get_by_role("button", name=" 下载采购文件")
+                            with page3.expect_download() as download_info:
+                                download_button.click()
+
+                            # 获取下载对象
+                            download = download_info.value
+                            # 等待下载文件完成并获取建议的文件名
+                            suggested_filename = download.suggested_filename
+                            file_path = os.path.join(os.path.join(os.getcwd(), keyword), suggested_filename)
+                            # 将文件保存到指定路径（如果已有同名文件，可能会覆盖）
+                            download.save_as(file_path)
+                            logger.info(f"PDF文件已下载到: {file_path}")
                             write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
-                                        baojiajiezhishijian, fabushijian, keyword, '否')
-                            continue
+                                        baojiajiezhishijian, fabushijian, keyword, '是')
+
                     except PlaywrightTimeoutError:
                         logger.warning("导航超时，跳过PDF下载")
                         write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
@@ -425,131 +451,120 @@ def main(keywords_list):
         dialog = CustomDialog("账户登陆状态", "账户登陆失败False")
         dialog.exec()
 
-# def main2():
-#     api_key = "fastgpt-uktl6lsmWuE6ocGg2adSC2CXPWlB2TLXp87LOHCxq9zRfljK4sPO"
-#     base_url = "http://192.168.50.81:3100/ragai"  # 例如: "https://your-domain.com"
-#     workflow_id = "68cbc237fd26a9e5197e6730"
-#     chat_id = "chat_id"  # 你可以生成一个UUID或使用固定值进行测试
-#     # PDF_FILE_PATH = "宁夏煤业清水营煤矿2025年数字化智能运维管理平台研究与应用技术服务询价采购-商务文件.pdf"
-#     # ZIP_FILE_PATH = "宁夏煤业清水营煤矿2025年数字化智能运维管理平台研究与应用技术服务询价采购-商务文件.zip"
-#     file_id = True
-#
-#     with zipfile.ZipFile("宁夏煤业清水营煤矿2025年数字化智能运维管理平台研究与应用技术服务询价采购-商务文件.zip", 'r') as zip_ref:
-#         zip_ref.extractall("临时文件")
-#         print(f"成功解压到: {"临时文件"}")
-#
-#     md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
-#     result = md.convert("宁夏煤业清水营煤矿2025年数字化智能运维管理平台研究与应用技术服务询价采购-商务文件.pdf")
-#     input_text = result.text_content[:9999]
-#     """
-#     步骤2：调用工作流API，传入文件ID和输入文本
-#     """
-#     url = f"{base_url}/api/v1/chat/completions"
-#     headers = {
-#         'Authorization': f'Bearer {api_key}',
-#         'Content-Type': 'application/json'
-#     }
-#     # 构建请求数据体
-#     data = {
-#         "model": "fastgpt-workflow",  # 或者其他指定的模型名
-#         "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
-#         "workflowId": workflow_id,  # 指定要运行的工作流
-#         "messages": [
-#             {
-#                 "role": "user",
-#                 "content": input_text,
-#                 # 此处是关键：在消息中关联已上传的文件
-#                 "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
-#             }
-#         ]
-#     }
-#
-#     try:
-#         response = requests.post(url, json=data, headers=headers)
-#         response.raise_for_status()
-#         result = response.json()
-#         print("工作流调用成功！")
-#         # 写入到excel文件
-#         write_excel2('宁夏煤业清水营煤矿2025年数字化智能运维管理平台研究与应用技术服务询价采购-商务文件.pdf',
-#                      result["choices"][0]["message"]["content"], '软件')
-#         # 提取并返回模型的回复内容
-#         # return result["choices"][0]["message"]["content"]
-#     except Exception as e:
-#         print(f"工作流调用失败: {e}")
-#         print(f"响应状态码: {response.status_code}")
-#         print(f"响应内容: {response.text}")
-#         # return None
-#
-#     # 4. 删除临时文件中的所有文件
-#     for file in os.listdir(os.path.join(os.getcwd(), '临时文件')):
-#         os.remove(os.path.join(os.getcwd(), '临时文件') + '/' + file)
 
+def main2(keywords_list):
 
-def main2():
-    key_word_list = ['软件', '维保', '运维']
-    for keyword in key_word_list:
-        # zip_file_path = os.path.join(os.getcwd(), keyword)
-        for f in os.listdir(keyword):
-            if f.endswith('.zip'):
-                print('zip名字: ', f)
-                with zipfile.ZipFile(os.path.join(keyword, f), 'r') as zip_ref:
-                    zip_ref.extractall("临时文件")
-                    print(f"成功解压到: {"临时文件"}")
+    # keywords_list = ['软件', '维保', '运维']
+    # dialog = CustomDialog("程序执行中,请等待...", "程序执行中，请等待...")
+    # dialog.show()
 
-                for pdf_file in os.listdir('临时文件'):
-                    if pdf_file.endswith('.pdf') and '商务' in pdf_file.split('.')[0]:
-                        md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
-                        result = md.convert('临时文件' + '/' + pdf_file)
-                        input_text = result.text_content[:9999]
-                        """
-                        步骤2：调用工作流API，传入文件ID和输入文本
-                        """
-                        url = f"{base_url}/api/v1/chat/completions"
-                        headers = {
-                            'Authorization': f'Bearer {api_key}',
-                            'Content-Type': 'application/json'
-                        }
-                        # 构建请求数据体
-                        data = {
-                            "model": "fastgpt-workflow",  # 或者其他指定的模型名
-                            "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
-                            "workflowId": workflow_id,  # 指定要运行的工作流
-                            "messages": [
-                                {
-                                    "role": "user",
-                                    "content": input_text,
-                                    # 此处是关键：在消息中关联已上传的文件
-                                    "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
-                                }
-                            ]
-                        }
+    for keyword in keywords_list:
+        if not os.path.exists(keyword):
+            logger.info(f'{keyword} - 文件夹不存在，请检查')
+            continue
+        else:
+            logger.info(f'{keyword} - 文件夹存在，请继续执行程序')
+            newest_time = None
+            if not os.path.exists(os.path.join(keyword, create_time_file)):
+                logger.info(f'{keyword} - 创建时间txt文件不存在，创建时间txt文件')
+                with open(os.path.join(keyword, create_time_file), 'w') as f:
+                    f.write('1900-01-01 00:00:00.000000')
+                with open(os.path.join(keyword, create_time_file), 'r') as file:
+                    lines = file.readlines()
+                    old_create_time = lines[0].strip() if lines else None  # 处理空文件
+                    tmp_create_time = datetime.strptime(old_create_time, "%Y-%m-%d %H:%M:%S.%f")
+                    # tmp_create_time = datetime.strftime(old_create_time, "%Y-%m-%d %H:%M:%S")
+                    logger.info(f"读取{keyword} - tmp_create_time时间: {tmp_create_time}")
+            else:
+                with open(os.path.join(keyword, create_time_file), 'r') as file:
+                    lines = file.readlines()
+                    old_create_time = lines[0].strip() if lines else None  # 处理空文件
+                    # tmp_create_time = datetime.strftime(old_create_time, "%Y-%m-%d %H:%M:%S")
+                    tmp_create_time = datetime.strptime(old_create_time, "%Y-%m-%d %H:%M:%S.%f")
+                    logger.info(f"读取上次{keyword} - 创建时间: {tmp_create_time}")
 
-                        try:
-                            response = requests.post(url, json=data, headers=headers)
-                            response.raise_for_status()
-                            result = response.json()
-                            print("工作流调用成功！")
-                            # 写入到excel文件
-                            write_excel2((pdf_file), result["choices"][0]["message"]["content"], keyword)
-                            # 提取并返回模型的回复内容
-                            # return result["choices"][0]["message"]["content"]
-                        except Exception as e:
-                            print(f"工作流调用失败: {e}")
-                            print(f"响应状态码: {response.status_code}")
-                            print(f"响应内容: {response.text}")
-                            # return None
+            for f in os.listdir(keyword):
+                if f.endswith('.zip'):
+                    # logger.info('zip名字: ', f)
+                    try:
+                        ctime = datetime.strptime(str(datetime.fromtimestamp(os.path.getctime(os.path.join(keyword, f)))), "%Y-%m-%d %H:%M:%S.%f")
+                        # logger.info(f"ctime: {ctime}")
+                        if newest_time is None or ctime > newest_time:
+                            newest_time = ctime
+                        # 如果最新时间比当前时间大，则解压缩文件，并理解内容，更新最新时间
+                        if ctime > tmp_create_time:
+                            # ai阅读理解pdf文件
+                            with zipfile.ZipFile(os.path.join(keyword, f), 'r') as zip_ref:
+                                zip_ref.extractall("临时文件")
+                                logger.info(f"成功解压到: {"临时文件"}")
 
-                        # 4. 删除临时文件中的所有文件
-                        for file in os.listdir('临时文件'):
-                            os.remove('临时文件' + '/' + file)
+                            for pdf_file in os.listdir('临时文件'):
+                                if pdf_file.endswith('.pdf') and '商务' in pdf_file.split('.')[0]:
+                                    md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
+                                    result = md.convert('临时文件' + '/' + pdf_file)
+                                    input_text = result.text_content[:9999]
+                                    """
+                                    步骤2：调用工作流API，传入文件ID和输入文本
+                                    """
+                                    url = f"{base_url}/api/v1/chat/completions"
+                                    headers = {
+                                        'Authorization': f'Bearer {api_key2}',
+                                        'Content-Type': 'application/json'
+                                    }
+                                    # 构建请求数据体
+                                    data = {
+                                        "model": "fastgpt-workflow",  # 或者其他指定的模型名
+                                        "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
+                                        "workflowId": workflow_id2,  # 指定要运行的工作流
+                                        "messages": [
+                                            {
+                                                "role": "user",
+                                                "content": input_text,
+                                                # 此处是关键：在消息中关联已上传的文件
+                                                "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
+                                            }
+                                        ]
+                                    }
 
+                                    try:
+                                        response = requests.post(url, json=data, headers=headers)
+                                        response.raise_for_status()
+                                        result = response.json()
+                                        logger.info("工作流调用成功！")
+                                        # 写入到excel文件
+                                        write_excel2((pdf_file), result["choices"][0]["message"]["content"], keyword)
+                                        # 提取并返回模型的回复内容
+                                        # return result["choices"][0]["message"]["content"]
+                                    except Exception as e:
+                                        logger.info(f"工作流调用失败: {e}")
+                                        logger.info(f"响应状态码: {response.status_code}")
+                                        logger.info(f"响应内容: {response.text}")
+                                        # return None
+
+                                    # 4. 删除临时文件中的所有文件
+                                    for file in os.listdir('临时文件'):
+                                        os.remove('临时文件' + '/' + file)
+                            logger.info(f'{keyword} - 数据更新成功')
+
+                        else:
+                            logger.info(f'{keyword} - 无需更新')
+
+                    except (OSError, PermissionError):
+                        continue
+
+            if newest_time:
+                logger.info(f"{keyword} - 最新创建时间为: {newest_time}")
+                with open(os.path.join(keyword, create_time_file), 'w') as f:
+                    f.write(str(newest_time))
+            else:
+                logger.info(f'{keyword} - 最新创建时间不存在')
 
 if __name__ == '__main__':
 
     keywords_list = ['软件', '运维', '维保']
     try:
         main(keywords_list)
-        main2()
+        main2(keywords_list)
 
     except KeyboardInterrupt:
         logger.info("程序被用户中断")
