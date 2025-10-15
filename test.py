@@ -8,7 +8,7 @@ def test():
 
     pattern = r'\{[^{}]*\}'
 
-    input_text = "'项称': '国能程序', 'AI文本理取结果': 'nihao', '间': '111' 改为json格式"
+    input_text = "'项称': '程', 'AI取结果': '你', '间': '23' 改为json格式"
     url = f"http://192.168.10.45:3000/api/v1/chat/completions"
     headers = {
         'Authorization': f'Bearer fastgpt-kRiYi9vHUzZZF55wKnkXjdVmSj4VF1IYaruRgEC59V2cijN0HWZY5CcO4dE7c',
@@ -57,7 +57,7 @@ def test():
 
 
 
-def write_excel2(text):
+def write_excel3(text):
     try:
 
         data = {key: [value] for key, value in text.items()}
@@ -67,15 +67,17 @@ def write_excel2(text):
         try:
             existing_df = pd.read_excel(file_path)
             new_df = pd.DataFrame(data)
+            trans_df = new_df.T.reset_index(drop=True)
             # 将新数据追加到现有的DataFrame中
-            combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+            combined_df = pd.concat([existing_df, trans_df], axis=1, ignore_index=True)
             # 将合并后的数据写回Excel文件
             combined_df.to_excel(file_path, index=False, sheet_name='信息表')
             # logger.info("数据已通过Pandas成功追加并保存！")
         except FileNotFoundError:
             # logger.info("文件不存在，创建新文件")
             df = pd.DataFrame(data)
-            df.to_excel(file_path, index=False, sheet_name='信息表')
+            trans_df = df.T.reset_index()
+            trans_df.to_excel(file_path, index=False, sheet_name='信息表')
             # logger.info("Excel文件已生成！")
     except Exception as e:
         # logger.error(f"写入Excel文件时发生错误: {str(e)}")
@@ -88,7 +90,7 @@ def write_excel2(text):
 if __name__ == '__main__':
     json = test()
     print(type(json))
-    write_excel2(json)
+    write_excel3(json)
 
     # file_path = os.path.join(os.getcwd(), '软件') + '/' + 'AI文本提取理解.xlsx'
     # existing_df = pd.read_excel(file_path)
