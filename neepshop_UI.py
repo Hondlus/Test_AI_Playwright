@@ -52,7 +52,7 @@ class MainWindow(QMainWindow, QDialog):
         layout.addWidget(label)
 
         # 创建按钮
-        self.execute_button2 = QPushButton("AI理解pdf")
+        self.execute_button2 = QPushButton("AI文档解析")
         self.execute_button2.clicked.connect(self.execute_main_function2)
         layout.addWidget(self.execute_button2)
 
@@ -73,12 +73,14 @@ class MainWindow(QMainWindow, QDialog):
         # print(f"执行主函数，关键字列表: {keyword_list}")
 
         neepshop_main.main(keyword_list)
-        # # 显示结果（在实际应用中，你可以根据需要修改这部分）
+        # 显示结果（在实际应用中，你可以根据需要修改这部分）
         # QMessageBox.information(self, "执行结果", "程序执行结束")
 
-    def main_function2(self):
+    def main_function2(self, keyword_list):
         """主函数程序 - 这里可以替换为你的实际功能"""
-        neepshop_main.main2()
+        neepshop_main.main2(keyword_list)
+        # 显示结果（在实际应用中，你可以根据需要修改这部分）
+        QMessageBox.information(self, "执行结果", "AI文档解析执行完毕")
 
     def execute_main_function(self):
         """执行主函数"""
@@ -101,8 +103,18 @@ class MainWindow(QMainWindow, QDialog):
 
     def execute_main_function2(self):
         """执行主函数2"""
+        # 获取输入文本
+        input_text = self.keyword_input.text().strip()
+
+        if not input_text:
+            QMessageBox.warning(self, "输入错误", "请输入关键字！")
+            return
+
+        # 转换为关键字列表
+        self.keyword_list = self.parse_keywords(input_text)
+
         try:
-            self.main_function2()
+            self.main_function2(self.keyword_list)
             print(f"主函数2执行完成")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(e)}")
