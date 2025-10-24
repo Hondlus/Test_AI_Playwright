@@ -1,5 +1,5 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
-import os, sys
+import os, sys, re, json
 import pandas as pd
 from neepshop_UI import CustomDialog
 from datetime import datetime, timedelta
@@ -7,6 +7,10 @@ import logging
 from markitdown import MarkItDown
 import zipfile
 import requests
+import shutil
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.utils import get_column_letter
 
 
 def setup_logging():
@@ -33,7 +37,6 @@ def setup_logging():
     return logging.getLogger(__name__)
 
 cookie_json = 'neepshop.json'
-# cookie_json2 = 'neepshop_shixiao.json'
 success_url = 'https://www.neep.shop/'
 login_url = 'https://cooperation.ceic.com/login/index?client_id=oauth-neep&redirect_uri=https%3A%2F%2Fwww.neep.shop%2Frest%2Fstsso&response_type=code'
 excel_url = 'https://www.neep.shop/html/portal/notice.html?type=enquiryOrderAnnc&nodeurl=callback_list_enquiry_order&noticeMoreUrl=https://gd-prod.cn-beijing.oss.aliyuncs.com/upload/cms/column/inquireListOne/index.html&pageTag=undefined&menu_code=&parent_menu_code=&root_menu_code='
@@ -42,15 +45,13 @@ fabu_time_file = 'public_time.txt'
 create_time_file = 'create_time.txt'
 logger = setup_logging()
 
-# api_key = "fastgpt-uktl6lsmWuE6ocGg2adSC2CXPWlB2TLXp87LOHCxq9zRfljK4sPO"
-api_key2 = "fastgpt-fCYCYBicNtBob8rzrytnbB60rivhEduElK0wWzBVCE2AB3RxJqKc0kZ9sURcPaNc"
-base_url = "http://192.168.50.81:3100/ragai"  # 例如: "https://your-domain.com"
-# workflow_id = "68cbc237fd26a9e5197e6730"
-workflow_id2 = "68e74de6fd26a9e519813e3c"
-chat_id = "chat_id"  # 你可以生成一个UUID或使用固定值进行测试
-# PDF_FILE_PATH = "宁夏煤业清水营煤矿2025年数字化智能运维管理平台研究与应用技术服务询价采购-商务文件.pdf"
-# ZIP_FILE_PATH = "宁夏煤业清水营煤矿2025年数字化智能运维管理平台研究与应用技术服务询价采购-商务文件.zip"
+api_key = "fastgpt-fCYCYBicNtBob8rzrytnbB60rivhEduElK0wWzBVCE2AB3RxJqKc0kZ9sURcPaNc"
+base_url = "http://192.168.50.81:3100/ragai"
+workflow_id = "68e74de6fd26a9e519813e3c"
+chat_id = "chat_id"
 file_id = True
+pattern = r'\{[^{}]*\}'
+separator = "-" * 60
 
 
 def write_excel(xmmc, bjrzgtj, xjfs, wzfl, fwsj, bjjzsj, fbsj, kw, is_down_pdf):
@@ -65,7 +66,7 @@ def write_excel(xmmc, bjrzgtj, xjfs, wzfl, fwsj, bjjzsj, fbsj, kw, is_down_pdf):
             '发布时间': [fbsj],
             '是否下载pdf': [is_down_pdf]
         }
-        file_path = os.path.join(os.getcwd(), kw) + '/' + '信息.xlsx'
+        file_path = os.path.join(os.getcwd(), kw) + '/' + '01_招标网站智能搜索结果.xlsx'
         try:
             existing_df = pd.read_excel(file_path)
             new_df = pd.DataFrame(data)
@@ -83,13 +84,22 @@ def write_excel(xmmc, bjrzgtj, xjfs, wzfl, fwsj, bjjzsj, fbsj, kw, is_down_pdf):
         logger.error(f"写入Excel文件时发生错误: {str(e)}")
         raise
 
+
 def write_excel2(xmmc, ai_read_text, kw):
     try:
-        data = {
-            '项目名称': [xmmc],
-            'AI文本理解提取结果': [ai_read_text]
-        }
-        file_path = os.path.join(os.getcwd(), kw) + '/' + 'AI文本提取理解.xlsx'
+        data = {'文件名': [xmmc]}
+        # 定义新的输出顺序
+        new_order = ['业务承接判定', '承接判定说明', '项目名称', '项目类型', '项目建设内容']
+        # 获取原始字典的所有键
+        original_keys = list(ai_read_text.keys())
+        # 从原始键中移除已经放在开头的键
+        remaining_keys = [key for key in original_keys if key not in new_order]
+        # 构建新的键顺序
+        final_order = new_order + remaining_keys
+        # 按照新顺序创建有序字典
+        data.update({key: [ai_read_text[key]] for key in final_order})
+
+        file_path = os.path.join(os.getcwd(), kw) + '/' + '02_招标文件智能解析结果.xlsx'
         try:
             existing_df = pd.read_excel(file_path)
             new_df = pd.DataFrame(data)
@@ -97,36 +107,11 @@ def write_excel2(xmmc, ai_read_text, kw):
             combined_df = pd.concat([existing_df, new_df], ignore_index=True)
             # 将合并后的数据写回Excel文件
             combined_df.to_excel(file_path, index=False, sheet_name='信息表')
-            # logger.info("数据已通过Pandas成功追加并保存！")
+            logger.info("数据已通过Pandas成功追加并保存！")
         except FileNotFoundError:
-            # logger.info("文件不存在，创建新文件")
+            logger.info("excel文件不存在，创建新文件")
             df = pd.DataFrame(data)
             df.to_excel(file_path, index=False, sheet_name='信息表')
-            # logger.info("Excel文件已生成！")
-    except Exception as e:
-        # logger.error(f"写入Excel文件时发生错误: {str(e)}")
-        raise
-
-def write_excel3(xmmc, ai_read_text, kw):
-    try:
-        data = {'项目名': [xmmc]}
-        data.update({key: [value] for key, value in ai_read_text.items()})
-        # print(data)
-        file_path = os.path.join(os.getcwd(), kw) + '/' + 'AI文本提取理解.xlsx'
-        try:
-            existing_df = pd.read_excel(file_path)
-            new_df = pd.DataFrame(data)
-            trans_df = new_df.T.reset_index(drop=True)
-            # 将新数据追加到现有的DataFrame中
-            combined_df = pd.concat([existing_df, trans_df], axis=1, ignore_index=True)
-            # 将合并后的数据写回Excel文件
-            combined_df.to_excel(file_path, index=False, sheet_name='信息表')
-            # logger.info("数据已通过Pandas成功追加并保存！")
-        except FileNotFoundError:
-            # logger.info("文件不存在，创建新文件")
-            df = pd.DataFrame(data)
-            trans_df = df.T.reset_index()
-            trans_df.to_excel(file_path, index=False, sheet_name='信息表')
             logger.info("Excel文件已生成！")
     except Exception as e:
         logger.error(f"写入Excel文件时发生错误: {str(e)}")
@@ -135,6 +120,50 @@ def write_excel3(xmmc, ai_read_text, kw):
     # existing_df = pd.read_excel(file_path)
     # trans_df = existing_df.T.reset_index()
     # trans_df.to_excel(file_path, index=False, sheet_name='信息表')
+
+def format_excel_file(file_path):
+    # 加载工作簿
+    wb = load_workbook(file_path)
+    ws = wb.active
+
+    # --------------设置第一行列宽、背景颜色、文字颜色-----------------
+    # 冻结第一列和第二列（A列和B列）
+    # 冻结窗格在C1单元格，即保持A列和B列可见
+    ws.freeze_panes = 'C1'
+
+    column_widths = [19, 17, 37, 23, 20, 76, 21, 16, 21, 23,
+                     15, 22, 15, 19, 15, 21, 21, 24, 15, 16,
+                     18, 26, 24, 24, 24, 22, 23, 19, 19, 28,
+                     23, 13, 30, 25, 25, 24, 24, 36]
+
+    for i, width in enumerate(column_widths, 1):
+        col_letter = get_column_letter(i)
+        ws.column_dimensions[col_letter].width = width
+
+    # 设置亮蓝色背景和白色字体
+    light_blue_fill = PatternFill(start_color="00B0F0",
+                                  end_color="00B0F0",
+                                  fill_type="solid")
+
+    white_font = Font(color="FFFFFF", bold=True, size=14)  # 白色字体
+
+    for cell in ws[1]:  # 第一行所有单元格
+        cell.fill = light_blue_fill
+        cell.font = white_font
+
+    # --------------设置所有行垂直居中、文字居左、自动换行-----------------
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            # 设置单元格对齐方式
+            cell.alignment = Alignment(
+                vertical='center',  # 垂直居中
+                horizontal='left',  # 水平居左
+                wrap_text=True  # 自动换行
+            )
+    # 保存文件
+    wb.save(file_path)
+    logger.info("Excel文件格式设置完成！")
+
 
 def update_content(project_name_list, iframe_locator, context, keyword, old_time):
     project_name = None
@@ -221,68 +250,73 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                             page3.get_by_role("button", name="我要参与").click()
                             page3.get_by_role("button", name="确定").click()
 
-                        title = page3.title()
-                        logger.info(f"页面标题: {title}")
+                        logger.info("页面发生了跳转, 加载页面A:报编")
+                        try:
+                            page3.get_by_role("button", name="关闭").wait_for(state="visible", timeout=10000)
+                            page3.get_by_role("button", name="关闭").click()
+                            logger.info("已关闭弹窗")
+                        except PlaywrightTimeoutError:
+                            logger.info("页面没有关闭按钮，直接下载")
 
-                        if '报编' in title:
+                        download_button = page3.get_by_role("button", name=" 下载采购文件")
+                        with page3.expect_download() as download_info:
+                            download_button.click()
+
+                        # 获取下载对象
+                        download = download_info.value
+                        # 等待下载文件完成并获取建议的文件名
+                        suggested_filename = download.suggested_filename
+                        file_path = os.path.join(os.path.join(os.getcwd(), keyword, '附件', '01_AI未解析'), suggested_filename)
+                        # 将文件保存到指定路径（如果已有同名文件，可能会覆盖）
+                        download.save_as(file_path)
+                        logger.info(f"PDF文件已下载到: {file_path}")
+                        write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
+                                    baojiajiezhishijian, fabushijian, keyword, '是')
+
+                    except Exception as e:
+                        try:
+                            with context.expect_page(timeout=10000) as new_page_info:
+                                page3.get_by_role("row", name="序号 采购单名称 采购单编号 收到的澄清 日期/周期 发布时间 报价(名)截止时间 采购机构 采购类别").get_by_label("").check()
+                                page3.get_by_role("button", name="我要参与").click()
+                                page3.get_by_role("button", name="确定").click()
+                            new_page = new_page_info.value
+                            logger.info(f"没有发生页面跳转，可能是新标签页: {e}")
+                            logger.info("加载页面B:供应商询比价管理")
+
                             try:
-                                page3.get_by_role("button", name="关闭").wait_for(state="visible", timeout=10000)
-                                page3.get_by_role("button", name="关闭").click()
-                                logger.info("已关闭弹窗")
-                            except PlaywrightTimeoutError:
-                                logger.info("页面没有关闭按钮，直接下载")
-
-
-                            download_button = page3.get_by_role("button", name=" 下载采购文件")
-                            with page3.expect_download() as download_info:
-                                download_button.click()
-
-                            # 获取下载对象
-                            download = download_info.value
-                            # 等待下载文件完成并获取建议的文件名
-                            suggested_filename = download.suggested_filename
-                            file_path = os.path.join(os.path.join(os.getcwd(), keyword), suggested_filename)
-                            # 将文件保存到指定路径（如果已有同名文件，可能会覆盖）
-                            download.save_as(file_path)
-                            logger.info(f"PDF文件已下载到: {file_path}")
-                            write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
-                                        baojiajiezhishijian, fabushijian, keyword, '是')
-                        else:
-                            logger.info("加载页面B")
-                            try:
-                                page3.wait_for_selector('a.fileOperation-btn', timeout=10000)
-                                download_elements = page3.query_selector_all('a.fileOperation-btn')
+                                new_page.wait_for_selector('a.fileOperation-btn', timeout=10000)
+                                download_elements = new_page.query_selector_all('a.fileOperation-btn')
                                 logger.info(f"找到 {len(download_elements)} 个下载链接")
 
                                 for download_element in download_elements:
-                                    with page3.expect_download() as download_info:
+                                    with new_page.expect_download() as download_info:
                                         download_element.click()
                                         # 获取下载对象
                                         download = download_info.value
                                         # 等待下载文件完成并获取建议的文件名
                                         suggested_filename = download.suggested_filename
-                                        file_path = os.path.join(os.path.join(os.getcwd()), suggested_filename)
+                                        file_path = os.path.join(
+                                            os.path.join(os.getcwd(), keyword, '附件', '01_AI未解析', project_name),
+                                            suggested_filename)
                                         # 将文件保存到指定路径（如果已有同名文件，可能会覆盖）
                                         download.save_as(file_path)
                                         logger.info(f"WORD文件已下载到: {file_path}")
-                                        write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei,
-                                                    fuwushijian, baojiajiezhishijian, fabushijian, keyword, '是')
+                                write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei,
+                                            fuwushijian, baojiajiezhishijian, fabushijian, keyword, '是')
+                            except Exception as e:
+                                logger.info(f"页面下载按钮版面变化导致错误: {e}")
+                            new_page.close()
 
-                            except PlaywrightTimeoutError:
-                                logger.info("页面下载按钮版面变化，请检查")
-
-                    except PlaywrightTimeoutError:
-                        logger.warning("导航超时，跳过PDF下载")
-                        write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
-                                    baojiajiezhishijian, fabushijian, keyword, '否')
-                        continue
+                        except Exception as e:
+                            logger.info(f"未知错误: {e}")
+                            logger.info(f"未搜索到 {project_name} 相关下载文件网页")
+                            write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
+                                        baojiajiezhishijian, fabushijian, keyword, '否')
+                            continue
                     # ------------------------下载pdf----------------------
-                    # write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian, baojiajiezhishijian, fabushijian, keyword)
                     logger.info("新数据更新成功")
-                    # page3.close()
                 else:
                     logger.warning("项目信息不完整，不符合条件")
-                    # page3.close()
             else:
                 logger.info("数据无需更新，跳过处理")
                 page3.close()
@@ -312,7 +346,9 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
                 logger.info(f"开始处理关键词: {keyword}")
                 main_path = os.path.join(os.getcwd(), keyword)
                 if not os.path.exists(main_path):
-                    os.mkdir(main_path)
+                    os.makedirs(os.path.join(main_path, '附件', '01_AI未解析'))
+                    os.makedirs(os.path.join(main_path, '附件', '02_AI已解析(不可承接)'))
+                    os.makedirs(os.path.join(main_path, '附件', '03_AI已解析(可承接)'))
                     logger.info(f"创建主文件夹: {main_path}")
                 else:
                     logger.info(f"主文件夹已存在: {main_path}")
@@ -402,7 +438,6 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
 def main(keywords_list):
     is_login_require = False
     main_folder = keywords_list
-    # sub_folders = ['excel', 'pdf']
     # 账户cookie登录逻辑
     if os.path.exists(os.path.join(os.getcwd(), cookie_json)):
         with sync_playwright() as p:
@@ -478,171 +513,171 @@ def main(keywords_list):
 
 
 def main2(keywords_list):
-
-    # keywords_list = ['软件', '维保', '运维']
-    # dialog = CustomDialog("程序执行中,请等待...", "程序执行中，请等待...")
-    # dialog.show()
+    dialog = CustomDialog("程序执行中,请等待...", "程序执行中，请等待...")
+    dialog.show()
 
     for keyword in keywords_list:
-        if not os.path.exists(keyword):
-            logger.info(f'{keyword} - 文件夹不存在，请检查')
-            continue
+        if not os.path.exists(os.path.join(keyword, '附件', '01_AI未解析')):
+            logger.info(f"{keyword}-附件-01_AI未解析 文件夹不存在,请检查相关数据")
         else:
-            logger.info(f'{keyword} - 文件夹存在，请继续执行程序')
-            newest_time = None
-            if not os.path.exists(os.path.join(keyword, create_time_file)):
-                logger.info(f'{keyword} - 创建时间txt文件不存在，创建时间txt文件')
-                with open(os.path.join(keyword, create_time_file), 'w') as f:
-                    f.write('1900-01-01 00:00:00.000000')
-                with open(os.path.join(keyword, create_time_file), 'r') as file:
-                    lines = file.readlines()
-                    old_create_time = lines[0].strip() if lines else None  # 处理空文件
-                    tmp_create_time = datetime.strptime(old_create_time, "%Y-%m-%d %H:%M:%S.%f")
-                    # tmp_create_time = datetime.strftime(old_create_time, "%Y-%m-%d %H:%M:%S")
-                    logger.info(f"读取{keyword} - tmp_create_time时间: {tmp_create_time}")
+            if len(os.listdir(os.path.join(keyword, '附件', '01_AI未解析'))) == 0:
+                logger.info(f"{keyword}-附件-01_AI未解析 文件夹为空, 无需更新")
             else:
-                with open(os.path.join(keyword, create_time_file), 'r') as file:
-                    lines = file.readlines()
-                    old_create_time = lines[0].strip() if lines else None  # 处理空文件
-                    # tmp_create_time = datetime.strftime(old_create_time, "%Y-%m-%d %H:%M:%S")
-                    tmp_create_time = datetime.strptime(old_create_time, "%Y-%m-%d %H:%M:%S.%f")
-                    logger.info(f"读取上次{keyword} - 创建时间: {tmp_create_time}")
-
-            for f in os.listdir(keyword):
-                if f.endswith('.zip'):
-                    # logger.info('zip名字: ', f)
-                    try:
-                        ctime = datetime.strptime(str(datetime.fromtimestamp(os.path.getctime(os.path.join(keyword, f)))), "%Y-%m-%d %H:%M:%S.%f")
-                        # logger.info(f"ctime: {ctime}")
-                        if newest_time is None or ctime > newest_time:
-                            newest_time = ctime
-                        # 如果最新时间比当前时间大，则解压缩文件，并理解内容，更新最新时间
-                        if ctime > tmp_create_time:
-                            # ai阅读理解pdf文件
-                            with zipfile.ZipFile(os.path.join(keyword, f), 'r') as zip_ref:
-                                zip_ref.extractall("临时文件")
-                                logger.info(f"成功解压到: {"临时文件"}")
-                            # AI理解pdf、docx内容
-                            for pdf_file in os.listdir('临时文件'):
-                                if pdf_file.endswith('.pdf') and '商务' in pdf_file.split('.')[0]:
-                                    md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
-                                    result = md.convert('临时文件' + '/' + pdf_file)
-                                    input_text = result.text_content[:9999]
-                                    """
-                                    步骤2：调用工作流API，传入文件ID和输入文本
-                                    """
-                                    url = f"{base_url}/api/v1/chat/completions"
-                                    headers = {
-                                        'Authorization': f'Bearer {api_key2}',
-                                        'Content-Type': 'application/json'
-                                    }
-                                    # 构建请求数据体
-                                    data = {
-                                        "model": "fastgpt-workflow",  # 或者其他指定的模型名
-                                        "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
-                                        "workflowId": workflow_id2,  # 指定要运行的工作流
-                                        "messages": [
-                                            {
-                                                "role": "user",
-                                                "content": input_text,
-                                                # 此处是关键：在消息中关联已上传的文件
-                                                "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
-                                            }
-                                        ]
-                                    }
-
-                                    try:
-                                        response = requests.post(url, json=data, headers=headers)
-                                        response.raise_for_status()
-                                        result = response.json()
-                                        logger.info("工作流调用成功！")
-                                        # 写入到excel文件
-                                        write_excel3((pdf_file), result["choices"][0]["message"]["content"], keyword)
-                                        # 提取并返回模型的回复内容
-                                        # return result["choices"][0]["message"]["content"]
-                                    except Exception as e:
-                                        logger.info(f"工作流调用失败: {e}")
-                                        logger.info(f"响应状态码: {response.status_code}")
-                                        logger.info(f"响应内容: {response.text}")
-                                        # return None
-
-                                    # 4. 删除临时文件中的所有文件
-                                    for file in os.listdir('临时文件'):
-                                        os.remove('临时文件' + '/' + file)
-
-                            logger.info(f'{keyword} - 数据更新成功')
-
-                        else:
-                            logger.info(f'{keyword} - 无需更新')
-
-                    except (OSError, PermissionError):
-                        continue
-
-                elif f.endswith('.docx') and '商务' in f.split('.')[0]:
-                    logger.info('docx: ', f)
-                    try:
-                        ctime = datetime.strptime(str(datetime.fromtimestamp(os.path.getctime(os.path.join(keyword, f)))), "%Y-%m-%d %H:%M:%S.%f")
-                        # logger.info(f"ctime: {ctime}")
-                        if newest_time is None or ctime > newest_time:
-                            newest_time = ctime
-                        # 如果最新时间比当前时间大，则解压缩文件，并理解内容，更新最新时间
-                        if ctime > tmp_create_time:
+                for f in os.listdir(os.path.join(keyword, '附件', '01_AI未解析')):
+                    item_path = os.path.join(keyword, '附件', '01_AI未解析', f)
+                    if os.path.isdir(item_path):
+                        logger.info(f"{f} 是文件夹,开始处理")
+                        try:
                             # AI理解docx内容
-                            md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
-                            result = md.convert(os.path.join(keyword, f))
-                            input_text = result.text_content[:9999]
+                            for pdf_file in os.listdir(item_path):
+                                if (pdf_file.endswith('.pdf') or pdf_file.endswith('.docx')) and '商务' in pdf_file.split('.')[0]:
+                                    md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
+                                    result = md.convert(os.path.join(item_path, pdf_file))
+                                    input_text = result.text_content[:19999]
+                                    shangwu_result_format = f"{separator}\n# 《{pdf_file}》\n{input_text}\n\n\n"
+                                elif (pdf_file.endswith('.pdf') or pdf_file.endswith('.docx')) and '技术' in pdf_file.split('.')[0]:
+                                    md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
+                                    result = md.convert(os.path.join(item_path, pdf_file))
+                                    input_text = result.text_content[:19999]
+                                    jishu_result_format = f"{separator}\n# 《{pdf_file}》\n{input_text}"
+                            result_format = shangwu_result_format + jishu_result_format
                             """
                             步骤2：调用工作流API，传入文件ID和输入文本
                             """
                             url = f"{base_url}/api/v1/chat/completions"
                             headers = {
-                                'Authorization': f'Bearer {api_key2}',
+                                'Authorization': f'Bearer {api_key}',
                                 'Content-Type': 'application/json'
                             }
                             # 构建请求数据体
                             data = {
                                 "model": "fastgpt-workflow",  # 或者其他指定的模型名
                                 "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
-                                "workflowId": workflow_id2,  # 指定要运行的工作流
+                                "workflowId": workflow_id,  # 指定要运行的工作流
                                 "messages": [
                                     {
                                         "role": "user",
-                                        "content": input_text,
+                                        "content": result_format,
                                         # 此处是关键：在消息中关联已上传的文件
                                         "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
                                     }
                                 ]
                             }
-
                             try:
                                 response = requests.post(url, json=data, headers=headers)
                                 response.raise_for_status()
                                 result = response.json()
                                 logger.info("工作流调用成功！")
+                                matches = re.findall(pattern, result["choices"][0]["message"]["content"])
+                                json_str = matches[0].replace('\n', '')
+                                json_dict = json.loads(json_str)
                                 # 写入到excel文件
-                                write_excel3((f), result["choices"][0]["message"]["content"], keyword)
-                                # 提取并返回模型的回复内容
-                                # return result["choices"][0]["message"]["content"]
+                                write_excel2((f), json_dict, keyword)
                             except Exception as e:
                                 logger.info(f"工作流调用失败: {e}")
                                 logger.info(f"响应状态码: {response.status_code}")
                                 logger.info(f"响应内容: {response.text}")
-                                # return None
 
                             logger.info(f'{keyword} - 数据更新成功')
 
+                            if '不可承接' in json_dict['业务承接判定']:
+                                if not os.path.exists(os.path.join(keyword, '附件', '02_AI已解析(不可承接)')):
+                                    os.makedirs(os.path.join(keyword, '附件', '02_AI已解析(不可承接)'))
+                                shutil.move(os.path.join(keyword, '附件', '01_AI未解析', f),
+                                            os.path.join(keyword, '附件', '02_AI已解析(不可承接)'))
+                            else:
+                                if not os.path.exists(os.path.join(keyword, '附件', '03_AI已解析(可承接)')):
+                                    os.makedirs(os.path.join(keyword, '附件', '03_AI已解析(可承接)'))
+                                shutil.move(os.path.join(keyword, '附件', '01_AI未解析', f),
+                                            os.path.join(keyword, '附件', '03_AI已解析(可承接)'))
+
+                        except Exception as e:
+                            logger.error(f"AI文档解析文件夹内容时发生错误: {e}")
+                            continue
+
+                    elif os.path.isfile(item_path):
+                        if f.lower().endswith('.zip'):
+                            logger.info(f"{f} 是ZIP文件, 开始处理")
+                            try:
+                                # ai阅读理解pdf文件
+                                with zipfile.ZipFile(os.path.join(keyword, '附件', '01_AI未解析', f), 'r') as zip_ref:
+                                    zip_ref.extractall("临时文件")
+                                    logger.info(f"成功解压到: {"临时文件"}")
+                                # AI理解pdf、docx内容
+                                for pdf_file in os.listdir('临时文件'):
+                                    if pdf_file.endswith('.pdf') and '商务' in pdf_file.split('.')[0]:
+                                        md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
+                                        result = md.convert('临时文件' + '/' + pdf_file)
+                                        input_text = result.text_content[:19999]
+                                        shangwu_result_format = f"{separator}\n# 《{pdf_file}》\n{input_text}\n\n\n"
+                                    elif pdf_file.endswith('.pdf') and '技术' in pdf_file.split('.')[0]:
+                                        md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
+                                        result = md.convert('临时文件' + '/' + pdf_file)
+                                        input_text = result.text_content[:19999]
+                                        jishu_result_format = f"{separator}\n# 《{pdf_file}》\n{input_text}"
+                                result_format = shangwu_result_format + jishu_result_format
+                                """
+                                步骤2：调用工作流API，传入文件ID和输入文本
+                                """
+                                url = f"{base_url}/api/v1/chat/completions"
+                                headers = {
+                                    'Authorization': f'Bearer {api_key}',
+                                    'Content-Type': 'application/json'
+                                }
+                                # 构建请求数据体
+                                data = {
+                                    "model": "fastgpt-workflow",  # 或者其他指定的模型名
+                                    "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
+                                    "workflowId": workflow_id,  # 指定要运行的工作流
+                                    "messages": [
+                                        {
+                                            "role": "user",
+                                            "content": result_format,
+                                            # 此处是关键：在消息中关联已上传的文件
+                                            "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
+                                        }
+                                    ]
+                                }
+
+                                try:
+                                    response = requests.post(url, json=data, headers=headers)
+                                    response.raise_for_status()
+                                    result = response.json()
+                                    logger.info("工作流调用成功！")
+                                    matches = re.findall(pattern, result["choices"][0]["message"]["content"])
+                                    json_str = matches[0].replace('\n', '')
+                                    json_dict = json.loads(json_str)
+                                    # 写入到excel文件
+                                    write_excel2((f), json_dict, keyword)
+                                except Exception as e:
+                                    logger.info(f"工作流调用失败: {e}")
+                                    logger.info(f"响应状态码: {response.status_code}")
+                                    logger.info(f"响应内容: {response.text}")
+
+                                # 4. 删除临时文件中的所有文件
+                                for file in os.listdir('临时文件'):
+                                    os.remove('临时文件' + '/' + file)
+
+                                logger.info(f'{keyword} - 数据更新成功')
+
+                                if '不可承接' in json_dict['业务承接判定']:
+                                    if not os.path.exists(os.path.join(keyword, '附件', '02_AI已解析(不可承接)')):
+                                        os.makedirs(os.path.join(keyword, '附件', '02_AI已解析(不可承接)'))
+                                    shutil.move(os.path.join(keyword, '附件', '01_AI未解析', f),
+                                                os.path.join(keyword, '附件', '02_AI已解析(不可承接)'))
+                                else:
+                                    if not os.path.exists(os.path.join(keyword, '附件', '03_AI已解析(可承接)')):
+                                        os.makedirs(os.path.join(keyword, '附件', '03_AI已解析(可承接)'))
+                                    shutil.move(os.path.join(keyword, '附件', '01_AI未解析', f),
+                                                os.path.join(keyword, '附件', '03_AI已解析(可承接)'))
+
+                            except Exception as e:
+                                logger.error(f"AI文档解析zip内容时发生错误: {e}")
+                                continue
                         else:
-                            logger.info(f'{keyword} - 无需更新')
+                            logger.info(f"{f} 是其他类型文件,暂不处理")
+                format_excel_file(os.path.join(os.getcwd(), keyword) + '/' + '02_招标文件智能解析结果.xlsx')
 
-                    except (OSError, PermissionError):
-                        continue
-
-            if newest_time:
-                logger.info(f"{keyword} - 最新创建时间为: {newest_time}")
-                with open(os.path.join(keyword, create_time_file), 'w') as f:
-                    f.write(str(newest_time))
-            else:
-                logger.info(f'{keyword} - 最新创建时间不存在')
 
 
 
@@ -652,7 +687,6 @@ if __name__ == '__main__':
     try:
         main(keywords_list)
         main2(keywords_list)
-
     except KeyboardInterrupt:
         logger.info("程序被用户中断")
     except Exception as e:
