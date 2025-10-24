@@ -1,7 +1,8 @@
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QMessageBox, QDialog)
-import re
+import re, time
 import neepshop_main
+from PyQt6.QtCore import QTimer
 
 
 # 自定义弹窗
@@ -21,7 +22,7 @@ class CustomDialog(QDialog):
 class MainWindow(QMainWindow, QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("国能e购项目招标一键获取文件小程序")
+        self.setWindowTitle("招标网站智能搜索解析工具")
         self.setGeometry(100, 100, 400, 200)
 
         # 创建中央部件
@@ -43,7 +44,7 @@ class MainWindow(QMainWindow, QDialog):
         layout.addWidget(self.keyword_input)
 
         # 创建按钮
-        self.execute_button = QPushButton("获取项目数据-下载pdf文件")
+        self.execute_button = QPushButton("01_招标网站智能搜索")
         self.execute_button.clicked.connect(self.execute_main_function)
         layout.addWidget(self.execute_button)
 
@@ -52,7 +53,7 @@ class MainWindow(QMainWindow, QDialog):
         layout.addWidget(label)
 
         # 创建按钮
-        self.execute_button2 = QPushButton("AI文档解析")
+        self.execute_button2 = QPushButton("02_招标文件智能解析")
         self.execute_button2.clicked.connect(self.execute_main_function2)
         layout.addWidget(self.execute_button2)
 
