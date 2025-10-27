@@ -66,7 +66,7 @@ def write_excel(xmmc, bjrzgtj, xjfs, wzfl, fwsj, bjjzsj, fbsj, kw, is_down_pdf):
             '发布时间': [fbsj],
             '是否下载pdf': [is_down_pdf]
         }
-        file_path = os.path.join(os.getcwd(), kw) + '/' + '01_招标网站智能搜索结果.xlsx'
+        file_path = os.path.join(os.getcwd(), kw) + '/' + f'01_招标网站智能搜索结果({kw}).xlsx'
         try:
             existing_df = pd.read_excel(file_path)
             new_df = pd.DataFrame(data)
@@ -99,7 +99,7 @@ def write_excel2(xmmc, ai_read_text, kw):
         # 按照新顺序创建有序字典
         data.update({key: [ai_read_text[key]] for key in final_order})
 
-        file_path = os.path.join(os.getcwd(), kw) + '/' + '02_招标文件智能解析结果.xlsx'
+        file_path = os.path.join(os.getcwd(), kw) + '/' + f'02_招标文件智能解析结果({kw}).xlsx'
         try:
             existing_df = pd.read_excel(file_path)
             new_df = pd.DataFrame(data)
@@ -127,14 +127,16 @@ def format_excel_file(file_path):
     ws = wb.active
 
     # --------------设置第一行列宽、背景颜色、文字颜色-----------------
-    # 冻结第一列和第二列（A列和B列）
+    # 冻结第一列和第二列（A列和B列）冻结第一行
     # 冻结窗格在C1单元格，即保持A列和B列可见
-    ws.freeze_panes = 'C1'
+    # ws.freeze_panes = 'A2'
+    # ws.freeze_panes = 'C1'
+    ws.freeze_panes = ws['C2']
 
-    column_widths = [19, 17, 37, 23, 20, 76, 21, 16, 21, 23,
-                     15, 22, 15, 19, 15, 21, 21, 24, 15, 16,
+    column_widths = [19, 17, 37, 23, 20, 76, 21, 16, 28, 28,
+                     15, 22, 15, 19, 15, 21, 26, 24, 15, 16,
                      18, 26, 24, 24, 24, 22, 23, 19, 19, 28,
-                     23, 13, 30, 25, 25, 24, 24, 36]
+                     23, 25, 30, 25, 30, 24, 36, 36]
 
     for i, width in enumerate(column_widths, 1):
         col_letter = get_column_letter(i)
@@ -237,23 +239,29 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                         page3.get_by_role("textbox", name="请输入采购单名称").click(timeout=6000)
                         page3.get_by_role("textbox", name="请输入采购单名称").fill(project_name)
                         page3.get_by_role("button", name="搜索").click()
-                        logger.info(f"已搜索采购单: {project_name}")
-                    except PlaywrightTimeoutError:
-                        logger.warning("账户未登录，无法下载PDF文件")
-                        dialog = CustomDialog("账户登录提示", "账户未登录,不能下载pdf文件,请登陆账户,再重新执行程序")
-                        dialog.exec()
+                        page3.get_by_role("row", name="序号 采购单名称 采购单编号 收到的澄清 日期/周期 发布时间 报价(名)截止时间 采购机构 采购类别").get_by_label("").check(timeout=2000)
+                    except Exception as e:
+                        logger.error(f"未搜索到采购单,请检查: {project_name}, 错误: {e}")
+                        write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
+                                    baojiajiezhishijian, fabushijian, keyword, '否')
+                        page3.close()
+                        continue
 
                     try:
+                        logger.info(f"已搜索采购单: {project_name}")
                         # 设置导航等待超时
                         with page3.expect_navigation(timeout=10000):
-                            page3.get_by_role("row", name="序号 采购单名称 采购单编号 收到的澄清 日期/周期 发布时间 报价(名)截止时间 采购机构 采购类别").get_by_label("").check()
                             page3.get_by_role("button", name="我要参与").click()
                             page3.get_by_role("button", name="确定").click()
+                            try:
+                                page3.get_by_role("button", name="确定").click(timeout=1000)
+                            except Exception as e:
+                                logger.error(f"没有多余弹窗按钮A: {e}")
 
                         logger.info("页面发生了跳转, 加载页面A:报编")
                         try:
-                            page3.get_by_role("button", name="关闭").wait_for(state="visible", timeout=10000)
-                            page3.get_by_role("button", name="关闭").click()
+                            # page3.get_by_role("button", name="关闭").wait_for(timeout=2000)
+                            page3.get_by_role("button", name="关闭").click(timeout=10000)
                             logger.info("已关闭弹窗")
                         except PlaywrightTimeoutError:
                             logger.info("页面没有关闭按钮，直接下载")
@@ -266,7 +274,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                         download = download_info.value
                         # 等待下载文件完成并获取建议的文件名
                         suggested_filename = download.suggested_filename
-                        file_path = os.path.join(os.path.join(os.getcwd(), keyword, '附件', '01_AI未解析'), suggested_filename)
+                        file_path = os.path.join(os.path.join(os.getcwd(), keyword, f'附件({keyword})', '01_AI未解析'), suggested_filename)
                         # 将文件保存到指定路径（如果已有同名文件，可能会覆盖）
                         download.save_as(file_path)
                         logger.info(f"PDF文件已下载到: {file_path}")
@@ -279,8 +287,12 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                                 page3.get_by_role("row", name="序号 采购单名称 采购单编号 收到的澄清 日期/周期 发布时间 报价(名)截止时间 采购机构 采购类别").get_by_label("").check()
                                 page3.get_by_role("button", name="我要参与").click()
                                 page3.get_by_role("button", name="确定").click()
+                                try:
+                                    page3.get_by_role("button", name="确定").click(timeout=1000)
+                                except Exception as e:
+                                    logger.error(f"没有多余弹窗按钮B: {e}")
+
                             new_page = new_page_info.value
-                            logger.info(f"没有发生页面跳转，可能是新标签页: {e}")
                             logger.info("加载页面B:供应商询比价管理")
 
                             try:
@@ -296,7 +308,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                                         # 等待下载文件完成并获取建议的文件名
                                         suggested_filename = download.suggested_filename
                                         file_path = os.path.join(
-                                            os.path.join(os.getcwd(), keyword, '附件', '01_AI未解析', project_name),
+                                            os.path.join(os.getcwd(), keyword, f'附件({keyword})', '01_AI未解析', project_name),
                                             suggested_filename)
                                         # 将文件保存到指定路径（如果已有同名文件，可能会覆盖）
                                         download.save_as(file_path)
@@ -337,7 +349,7 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
     logger.info("开始执行下载任务")
     with sync_playwright() as p:
         try:
-            bro = p.chromium.launch(headless=False, slow_mo=1000)
+            bro = p.chromium.launch(headless=True, slow_mo=1000)
             context = bro.new_context(storage_state=cookie_json)
             page = context.new_page()
             logger.info("浏览器启动成功")
@@ -346,9 +358,9 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
                 logger.info(f"开始处理关键词: {keyword}")
                 main_path = os.path.join(os.getcwd(), keyword)
                 if not os.path.exists(main_path):
-                    os.makedirs(os.path.join(main_path, '附件', '01_AI未解析'))
-                    os.makedirs(os.path.join(main_path, '附件', '02_AI已解析(不可承接)'))
-                    os.makedirs(os.path.join(main_path, '附件', '03_AI已解析(可承接)'))
+                    os.makedirs(os.path.join(main_path, f'附件({keyword})', '01_AI未解析'))
+                    os.makedirs(os.path.join(main_path, f'附件({keyword})', '02_AI已解析(不可承接)'))
+                    os.makedirs(os.path.join(main_path, f'附件({keyword})', '03_AI已解析(可承接)'))
                     logger.info(f"创建主文件夹: {main_path}")
                 else:
                     logger.info(f"主文件夹已存在: {main_path}")
@@ -517,14 +529,14 @@ def main2(keywords_list):
     dialog.show()
 
     for keyword in keywords_list:
-        if not os.path.exists(os.path.join(keyword, '附件', '01_AI未解析')):
-            logger.info(f"{keyword}-附件-01_AI未解析 文件夹不存在,请检查相关数据")
+        if not os.path.exists(os.path.join(keyword, f'附件({keyword})', '01_AI未解析')):
+            logger.info(f"{keyword}-f'附件({keyword})'-01_AI未解析 文件夹不存在,请检查相关数据")
         else:
-            if len(os.listdir(os.path.join(keyword, '附件', '01_AI未解析'))) == 0:
-                logger.info(f"{keyword}-附件-01_AI未解析 文件夹为空, 无需更新")
+            if len(os.listdir(os.path.join(keyword, f'附件({keyword})', '01_AI未解析'))) == 0:
+                logger.info(f"{keyword}-f'附件({keyword})'-01_AI未解析 文件夹为空, 无需更新")
             else:
-                for f in os.listdir(os.path.join(keyword, '附件', '01_AI未解析')):
-                    item_path = os.path.join(keyword, '附件', '01_AI未解析', f)
+                for f in os.listdir(os.path.join(keyword, f'附件({keyword})', '01_AI未解析')):
+                    item_path = os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f)
                     if os.path.isdir(item_path):
                         logger.info(f"{f} 是文件夹,开始处理")
                         try:
@@ -558,6 +570,8 @@ def main2(keywords_list):
                                     {
                                         "role": "user",
                                         "content": result_format,
+
+
                                         # 此处是关键：在消息中关联已上传的文件
                                         "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
                                     }
@@ -581,15 +595,15 @@ def main2(keywords_list):
                             logger.info(f'{keyword} - 数据更新成功')
 
                             if '不可承接' in json_dict['业务承接判定']:
-                                if not os.path.exists(os.path.join(keyword, '附件', '02_AI已解析(不可承接)')):
-                                    os.makedirs(os.path.join(keyword, '附件', '02_AI已解析(不可承接)'))
-                                shutil.move(os.path.join(keyword, '附件', '01_AI未解析', f),
-                                            os.path.join(keyword, '附件', '02_AI已解析(不可承接)'))
+                                if not os.path.exists(os.path.join(keyword, f'附件({keyword})', '02_AI已解析(不可承接)')):
+                                    os.makedirs(os.path.join(keyword, f'附件({keyword})', '02_AI已解析(不可承接)'))
+                                shutil.move(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f),
+                                            os.path.join(keyword, f'附件({keyword})', '02_AI已解析(不可承接)'))
                             else:
-                                if not os.path.exists(os.path.join(keyword, '附件', '03_AI已解析(可承接)')):
-                                    os.makedirs(os.path.join(keyword, '附件', '03_AI已解析(可承接)'))
-                                shutil.move(os.path.join(keyword, '附件', '01_AI未解析', f),
-                                            os.path.join(keyword, '附件', '03_AI已解析(可承接)'))
+                                if not os.path.exists(os.path.join(keyword, f'附件({keyword})', '03_AI已解析(可承接)')):
+                                    os.makedirs(os.path.join(keyword, f'附件({keyword})', '03_AI已解析(可承接)'))
+                                shutil.move(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f),
+                                            os.path.join(keyword, f'附件({keyword})', '03_AI已解析(可承接)'))
 
                         except Exception as e:
                             logger.error(f"AI文档解析文件夹内容时发生错误: {e}")
@@ -600,7 +614,7 @@ def main2(keywords_list):
                             logger.info(f"{f} 是ZIP文件, 开始处理")
                             try:
                                 # ai阅读理解pdf文件
-                                with zipfile.ZipFile(os.path.join(keyword, '附件', '01_AI未解析', f), 'r') as zip_ref:
+                                with zipfile.ZipFile(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f), 'r') as zip_ref:
                                     zip_ref.extractall("临时文件")
                                     logger.info(f"成功解压到: {"临时文件"}")
                                 # AI理解pdf、docx内容
@@ -661,24 +675,22 @@ def main2(keywords_list):
                                 logger.info(f'{keyword} - 数据更新成功')
 
                                 if '不可承接' in json_dict['业务承接判定']:
-                                    if not os.path.exists(os.path.join(keyword, '附件', '02_AI已解析(不可承接)')):
-                                        os.makedirs(os.path.join(keyword, '附件', '02_AI已解析(不可承接)'))
-                                    shutil.move(os.path.join(keyword, '附件', '01_AI未解析', f),
-                                                os.path.join(keyword, '附件', '02_AI已解析(不可承接)'))
+                                    if not os.path.exists(os.path.join(keyword, f'附件({keyword})', '02_AI已解析(不可承接)')):
+                                        os.makedirs(os.path.join(keyword, f'附件({keyword})', '02_AI已解析(不可承接)'))
+                                    shutil.move(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f),
+                                                os.path.join(keyword, f'附件({keyword})', '02_AI已解析(不可承接)'))
                                 else:
-                                    if not os.path.exists(os.path.join(keyword, '附件', '03_AI已解析(可承接)')):
-                                        os.makedirs(os.path.join(keyword, '附件', '03_AI已解析(可承接)'))
-                                    shutil.move(os.path.join(keyword, '附件', '01_AI未解析', f),
-                                                os.path.join(keyword, '附件', '03_AI已解析(可承接)'))
+                                    if not os.path.exists(os.path.join(keyword, f'附件({keyword})', '03_AI已解析(可承接)')):
+                                        os.makedirs(os.path.join(keyword, f'附件({keyword})', '03_AI已解析(可承接)'))
+                                    shutil.move(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f),
+                                                os.path.join(keyword, f'附件({keyword})', '03_AI已解析(可承接)'))
 
                             except Exception as e:
                                 logger.error(f"AI文档解析zip内容时发生错误: {e}")
                                 continue
                         else:
                             logger.info(f"{f} 是其他类型文件,暂不处理")
-                format_excel_file(os.path.join(os.getcwd(), keyword) + '/' + '02_招标文件智能解析结果.xlsx')
-
-
+                format_excel_file(os.path.join(os.getcwd(), keyword) + '/' + f'02_招标文件智能解析结果({keyword}).xlsx')
 
 
 if __name__ == '__main__':
