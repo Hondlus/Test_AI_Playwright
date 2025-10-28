@@ -1,8 +1,7 @@
 import sys
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QMessageBox, QDialog)
-import re, time
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QMessageBox, QDialog, QHBoxLayout)
+import re
 import neepshop_main
-from PyQt6.QtCore import QTimer
 
 
 # 自定义弹窗
@@ -23,7 +22,10 @@ class MainWindow(QMainWindow, QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("招标网站智能搜索解析工具")
-        self.setGeometry(100, 100, 400, 200)
+        screen = QApplication.primaryScreen().availableGeometry()
+        x = (screen.width() - self.width()) // 2
+        y = (screen.height() - self.height()) // 2
+        self.setGeometry(x, y, 400, 200)
 
         # 创建中央部件
         central_widget = QWidget()
@@ -33,29 +35,42 @@ class MainWindow(QMainWindow, QDialog):
         layout = QVBoxLayout()
         central_widget.setLayout(layout)
 
+        # 搜索关键词水平布局
+        keyword_layout = QHBoxLayout()
         # 创建标签
-        label = QLabel("step1. 请输入关键字（用逗号、空格或分号分隔）：")
-        layout.addWidget(label)
-
+        label = QLabel("搜索关键字(多个关键字中间用逗号隔开): ")
         # 创建输入框
         self.keyword_input = QLineEdit()
         self.keyword_input.setText("软件, 运维, 维保")
         self.keyword_input.setPlaceholderText("例如: 软件, 运维, 维保")
-        layout.addWidget(self.keyword_input)
+        keyword_layout.addWidget(label)
+        keyword_layout.addWidget(self.keyword_input)
+        layout.addLayout(keyword_layout)
 
+        layout.addSpacing(15)
+
+        # 分步按钮垂直布局
+        step_layout = QVBoxLayout()
         # 创建按钮
-        self.execute_button = QPushButton("01_招标网站智能搜索")
+        self.execute_button = QPushButton("分步执行(Step1: 招标网站智能搜索)")
         self.execute_button.clicked.connect(self.execute_main_function)
-        layout.addWidget(self.execute_button)
+        step_layout.addWidget(self.execute_button)
 
-        # 创建标签
-        label = QLabel("step2. AI提取并理解pdf内容：(在完成step1的前提下执行step2)")
-        layout.addWidget(label)
+        # step_layout.addSpacing(5)
 
         # 创建按钮
-        self.execute_button2 = QPushButton("02_招标文件智能解析")
+        self.execute_button2 = QPushButton("分步执行(Step2: 招标文件智能解析)")
         self.execute_button2.clicked.connect(self.execute_main_function2)
-        layout.addWidget(self.execute_button2)
+        step_layout.addWidget(self.execute_button2)
+        layout.addLayout(step_layout)
+
+        layout.addSpacing(15)
+
+        self.onekey_button = QPushButton("一键执行(Step1 + Step2)")
+        self.onekey_button.clicked.connect(self.execute_onekey_function)
+        layout.addWidget(self.onekey_button)
+
+        layout.addSpacing(15)
 
         # 初始化关键字列表变量
         self.keyword_list = []
@@ -119,6 +134,26 @@ class MainWindow(QMainWindow, QDialog):
             print(f"主函数2执行完成")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(e)}")
+
+    def execute_onekey_function(self):
+        """一键执行函数"""
+        # 获取输入文本
+        input_text = self.keyword_input.text().strip()
+
+        if not input_text:
+            QMessageBox.warning(self, "输入错误", "请输入关键字！")
+            return
+
+        # 转换为关键字列表
+        self.keyword_list = self.parse_keywords(input_text)
+
+        try:
+            self.main_function(self.keyword_list)
+            self.main_function2(self.keyword_list)
+            print(f"一键执行完成")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(e)}")
+
 
 def main():
     app = QApplication(sys.argv)
