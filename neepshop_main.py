@@ -349,7 +349,7 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
     logger.info("开始执行下载任务")
     with sync_playwright() as p:
         try:
-            bro = p.chromium.launch(headless=True, slow_mo=1000)
+            bro = p.chromium.launch(headless=False, slow_mo=1000)
             context = bro.new_context(storage_state=cookie_json)
             page = context.new_page()
             logger.info("浏览器启动成功")
@@ -458,7 +458,6 @@ def main(keywords_list):
             context = browser.new_context(storage_state=cookie_json)
             page = context.new_page()
             page.goto(login_url)
-            # page.wait_for_load_state("networkidle")
             try:
                 page.wait_for_url(success_url)
                 dialog = CustomDialog("账户登录提示", "账号登陆成功，关闭弹窗，继续执行程序")
@@ -494,7 +493,7 @@ def main(keywords_list):
                 page.wait_for_url(success_url, timeout=5*60*1000)
                 dialog = CustomDialog("账户登录提示", "账户登录成功,关闭弹窗,继续执行程序")
                 dialog.exec()
-                storage = context.storage_state(path=cookie_json)
+                storage = page.context.storage_state(path=cookie_json)
                 page.close()
                 context.close()
                 browser.close()
