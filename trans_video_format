@@ -1,0 +1,17 @@
+from moviepy.editor import VideoFileClip
+
+mov_file = "./input.mov" # 输入视频路径
+mp4_file = "./output.mp4" # 输出视频路径
+
+clip = VideoFileClip(mov_file)
+
+# 检查视频帧率（FPS），如果没有找到，则设置为默认值24
+if clip.fps is None:
+    print("FPS not found, setting default fps to 24")
+    fps = 24
+else:
+    print("FPS is", clip.fps)
+    fps = clip.fps
+
+# 将视频写入MP4文件，使用libx264编码器和aac音频编码器
+clip.write_videofile(mp4_file, codec="libx264", audio_codec="aac", fps=fps)
