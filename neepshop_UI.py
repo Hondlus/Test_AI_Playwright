@@ -90,7 +90,7 @@ class MainWindow(QMainWindow, QDialog):
 
         neepshop_main.main(keyword_list)
         # 显示结果（在实际应用中，你可以根据需要修改这部分）
-        # QMessageBox.information(self, "执行结果", "程序执行结束")
+        QMessageBox.information(self, "执行结果", "程序执行结束")
 
     def main_function2(self, keyword_list):
         """主函数程序 - 这里可以替换为你的实际功能"""
