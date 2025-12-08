@@ -27,7 +27,7 @@ def setup_logging():
     # 配置日志格式
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(funcName)s - %(message)s',
         handlers=[
             logging.FileHandler(log_filepath, encoding='utf-8'),
             logging.StreamHandler(sys.stdout)  # 同时输出到控制台
@@ -167,7 +167,7 @@ def format_excel_file(file_path):
     logger.info("Excel文件格式设置完成！")
 
 
-def update_content(project_name_list, iframe_locator, context, keyword, old_time):
+def update_content(project_name_list, iframe_locator, context, keyword, old_time, page_num):
     project_name = None
     baojiarenzigetiaojian = None
     xunjiafangshi = None
@@ -176,11 +176,10 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
     baojiajiezhishijian = None
     tmp_new_time = None
 
-    logger.info(f"开始处理关键词 '{keyword}' 的项目列表，共 {len(project_name_list)} 个项目")
-
     for i in range(len(project_name_list)):
         try:
-            logger.info(f"处理第 {i + 1} 个项目: {project_name_list[i]}")
+            logger.info(f"--------------------------------------------------------------------------------")
+            logger.info(f"开始处理关键词 '{keyword}' 的 第{page_num}页 的 第{i + 1}个项目: {project_name_list[i]}")
 
             link_locator = iframe_locator.get_by_role('link', name=project_name_list[i])
             href = link_locator.get_attribute('href')
@@ -194,44 +193,60 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
             public_times = page3.query_selector_all('div.content_right div.right-main-content div.help-detail-title div.title-other')
 
             for public_time in public_times:
-                if i == 0:
+                if i == 0 and page_num == 1:
                     tmp_new_time = public_time.inner_text().strip()
                 fabushijian = public_time.inner_text().strip()
                 try:
                     new_time = datetime.strptime(fabushijian, "%Y-%m-%d %H:%M:%S")
-                    logger.info(f"项目发布时间: {fabushijian}")
+                    logger.info(f"{project_name_list[i]} 的发布时间: {fabushijian}")
                 except ValueError as e:
                     logger.error(f"时间格式解析错误: {fabushijian}, 错误: {e}")
                     page3.close()
                     continue
 
             if old_time < new_time:
+                conditions_met = {
+                    "project_name": False,
+                    "baojiarenzigetiaojian": False,
+                    "xunjiafangshi": False,
+                    "wuzifenlei": False,
+                    "fuwushijian": False,
+                    "baojiajiezhishijian": False
+                }
                 logger.info("发现新数据，开始提取信息")
                 for item in items:
                     text_content = item.inner_text()
                     if "项目名称" in text_content:
                         project_name = text_content.split("：", 1)[1].strip()
                         logger.info(f"项目名称: {project_name}")
+                        conditions_met["project_name"] = True
                     elif "报价人资格条件" in text_content:
                         baojiarenzigetiaojian = text_content.split("：", 1)[1].strip()
                         logger.info(f"报价人资格条件: {baojiarenzigetiaojian}")
+                        conditions_met["baojiarenzigetiaojian"] = True
                     elif "公开询价" in text_content:
                         xunjiafangshi = text_content.split("：", 1)[1].strip()
                         logger.info(f"询价方式: {xunjiafangshi}")
+                        conditions_met["xunjiafangshi"] = True
                     elif "服务类->综合服务" in text_content:
                         wuzifenlei = text_content.split("：", 1)[1].strip()
                         logger.info(f"物资分类: {wuzifenlei}")
+                        conditions_met["wuzifenlei"] = True
 
                 for item2 in items2:
                     text_content2 = item2.inner_text()
-                    if "服务时间" in text_content2 or "交货时间" in text_content2:
+                    if "服务时间" in text_content2 or "交货时间" in text_content2 or "施工时间" in text_content2:
                         fuwushijian = text_content2.split("：", 1)[1].strip()
-                        logger.info(f"交货时间或服务时间: {fuwushijian}")
+                        logger.info(f"服务时间或交货时间或施工时间: {fuwushijian}")
+                        conditions_met["fuwushijian"] = True
                     elif "报价截止时间" in text_content2:
                         baojiajiezhishijian = text_content2.split("：", 1)[1].strip()
                         logger.info(f"报价截止时间: {baojiajiezhishijian}")
+                        conditions_met["baojiajiezhishijian"] = True
 
-                if project_name and baojiarenzigetiaojian and xunjiafangshi and wuzifenlei and fuwushijian and baojiajiezhishijian:
+                all_conditions_met = all(conditions_met.values())
+
+                if all_conditions_met:
                     logger.info("项目信息完整，符合条件，开始下载PDF")
                     # ------------------------下载pdf-----------------------
                     page3.goto(pdf_url)
@@ -377,45 +392,45 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
                 # next_page = iframe_locator.locator('//*[@id="next_page"]').inner_text()
                 pagenum = iframe_locator.locator('//*[@id="pageNum"]').inner_text()
                 total_page = int(pagenum.lstrip('共').rstrip('页'))
-                logger.info(f"找到 {len(project_name_list)} 个项目，共 {total_page} 页")
+                logger.info(f"{keyword} 项目数量 共 {total_page} 页")
 
                 if len(project_name_list) == 0:
-                    logger.info("没有网页数据")
+                    logger.info("没有网页数据，跳过搜索下一个关键词")
                     continue
                 else:
                     if not os.path.exists(os.path.join(os.getcwd(), keyword, fabu_time_file)):
-                        logger.info("时间文件不存在，创建初始时间")
+                        logger.info("public_time.txt 文件不存在，创建 public_time.txt")
                         # 获取当前日期（时间部分设为00:00:00）
                         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
                         # 计算5天前的日期
                         five_days_ago = today - timedelta(days=5)
                         # 按照指定格式输出
-                        today_str = today.strftime("%Y-%m-%d %H:%M:%S")
                         five_days_ago_str = five_days_ago.strftime("%Y-%m-%d %H:%M:%S")
-                        logger.info(f"设置初始时间: {five_days_ago_str}")
 
                         # 创建标记文件
                         with open(os.path.join(os.getcwd(), keyword, fabu_time_file), 'w') as f:
                             f.write(five_days_ago_str)
+                        logger.info(f"创建 public_time.txt 文件成功，时间为当前时间的前5天: {five_days_ago_str}")
 
                         with open(os.path.join(os.getcwd(), keyword, fabu_time_file), 'r') as file:
                             lines = file.readlines()
                             old_fabu_time = lines[0].strip() if lines else None  # 处理空文件
                             old_time = datetime.strptime(old_fabu_time, "%Y-%m-%d %H:%M:%S")
-                            logger.info(f"读取上次更新时间: {old_fabu_time}")
+                            logger.info(f"读取 public_time.txt 文件时间，该时间为当前时间的前5天: {old_fabu_time}")
 
                         # 正常遍历内容
-                        tmp_time = update_content(project_name_list, iframe_locator, context, keyword, old_time)
+                        tmp_time = update_content(project_name_list, iframe_locator, context, keyword, old_time, 1)
                         # 下一页功能实现
                         for i in range(total_page - 1):
-                            logger.info(f"处理第 {i + 2} 页")
+                            logger.info(f"开始处理 {keyword} 第 {i + 2} 页")
                             page.locator("#notice iframe").content_frame.get_by_text("下一页").click()
                             iframe_locator = page.frame_locator("iframe[src='https://gd-prod.cn-beijing.oss.aliyuncs.com/upload/cms/column/inquireListOne/index.html']")
                             project_name_list = iframe_locator.locator('[class="c_href"]').all_text_contents()
-                            update_content(project_name_list, iframe_locator, context, keyword, old_time)
+                            update_content(project_name_list, iframe_locator, context, keyword, old_time, i + 2)
+                            logger.info(f"{keyword} 第 {i + 2} 页处理完成")
                         with open(os.path.join(os.getcwd(), keyword, fabu_time_file), 'w', encoding='utf-8') as file:
                             file.write(tmp_time)
-                        logger.info(f"更新时间文件: {tmp_time}")
+                        logger.info(f"更新 {keyword} public_time.txt 文件时间: {tmp_time}")
 
                     # 如果不为空，则取出txt中旧时间，进行对比
                     else:
@@ -423,16 +438,16 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
                             lines = file.readlines()
                             old_fabu_time = lines[0].strip() if lines else None  # 处理空文件
                             old_time = datetime.strptime(old_fabu_time, "%Y-%m-%d %H:%M:%S")
-
+                        logger.info(f"读取 {keyword} public_time 文件时间 {old_time}")
                         # 正常遍历内容
-                        tmp_time2 = update_content(project_name_list, iframe_locator, context, keyword, old_time)
+                        tmp_time2 = update_content(project_name_list, iframe_locator, context, keyword, old_time, 1)
                         # 下一页功能实现
                         for i in range(total_page - 1):
                             page.locator("#notice iframe").content_frame.get_by_text("下一页").click()
                             iframe_locator = page.frame_locator(
                                 "iframe[src='https://gd-prod.cn-beijing.oss.aliyuncs.com/upload/cms/column/inquireListOne/index.html']")
                             project_name_list = iframe_locator.locator('[class="c_href"]').all_text_contents()
-                            update_content(project_name_list, iframe_locator, context, keyword, old_time)
+                            update_content(project_name_list, iframe_locator, context, keyword, old_time, i + 2)
                         with open(os.path.join(os.getcwd(), keyword, fabu_time_file), 'w', encoding='utf-8') as file:
                             file.write(tmp_time2)
             logger.info("所有关键词处理完成")
@@ -615,7 +630,7 @@ def main2(keywords_list):
                                 # ai阅读理解pdf文件
                                 with zipfile.ZipFile(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f), 'r') as zip_ref:
                                     zip_ref.extractall("临时文件")
-                                    logger.info(f"成功解压到: {"临时文件"}")
+                                    logger.info("成功解压到: 临时文件")
                                 # AI理解pdf、docx内容
                                 for pdf_file in os.listdir('临时文件'):
                                     if pdf_file.endswith('.pdf') and '商务' in pdf_file.split('.')[0]:
