@@ -319,7 +319,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                                 page3.get_by_role("button", name="我要参与").click()
                                 page3.get_by_role("button", name="确定").click()
                                 try:
-                                    page3.get_by_role("button", name="确定").click(timeout=1000)
+                                    page3.get_by_role("button", name="确定").click(timeout=5000)
                                 except Exception as e:
                                     logger.error(f"没有多余弹窗按钮B: {e}")
 
