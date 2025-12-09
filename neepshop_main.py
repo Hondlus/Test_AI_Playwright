@@ -42,7 +42,6 @@ login_url = 'https://cooperation.ceic.com/login/index?client_id=oauth-neep&redir
 excel_url = 'https://www.neep.shop/html/portal/notice.html?type=enquiryOrderAnnc&nodeurl=callback_list_enquiry_order&noticeMoreUrl=https://gd-prod.cn-beijing.oss.aliyuncs.com/upload/cms/column/inquireListOne/index.html&pageTag=undefined&menu_code=&parent_menu_code=&root_menu_code='
 pdf_url = 'https://www.neep.shop/dist/index.html#/purchaserNoticeIndex#/purchaserNoticeIndex?autoId=290201'
 fabu_time_file = 'public_time.txt'
-create_time_file = 'create_time.txt'
 logger = setup_logging()
 
 api_key = "fastgpt-fCYCYBicNtBob8rzrytnbB60rivhEduElK0wWzBVCE2AB3RxJqKc0kZ9sURcPaNc"
@@ -54,7 +53,7 @@ pattern = r'\{[^{}]*\}'
 separator = "-" * 60
 
 
-def write_excel(xmmc, bjrzgtj, xjfs, wzfl, fwsj, bjjzsj, fbsj, kw, is_down_pdf):
+def write_excel(xmmc, bjrzgtj, xjfs, wzfl, fwsj, bjjzsj, fbsj, kw, is_down_pdf, n_t):
     try:
         data = {
             '项目名称': [xmmc],
@@ -64,7 +63,8 @@ def write_excel(xmmc, bjrzgtj, xjfs, wzfl, fwsj, bjjzsj, fbsj, kw, is_down_pdf):
             '服务时间': [fwsj],
             '报价截止时间': [bjjzsj],
             '发布时间': [fbsj],
-            '是否下载pdf': [is_down_pdf]
+            '是否下载pdf': [is_down_pdf],
+            '更新时间': [n_t]
         }
         file_path = os.path.join(os.getcwd(), kw) + '/' + f'01_招标网站智能搜索结果({kw}).xlsx'
         try:
@@ -85,9 +85,11 @@ def write_excel(xmmc, bjrzgtj, xjfs, wzfl, fwsj, bjjzsj, fbsj, kw, is_down_pdf):
         raise
 
 
-def write_excel2(xmmc, ai_read_text, kw):
+def write_excel2(xmmc, ai_read_text, kw, n_t2):
     try:
-        data = {'文件名': [xmmc]}
+        new_xmmc = n_t2 + '_' + xmmc
+        # data = {'文件名': [xmmc]}
+        data = {'文件名': [new_xmmc]}
         # 定义新的输出顺序
         new_order = ['业务承接判定', '承接判定说明', '项目名称', '项目类型', '项目建设内容']
         # 获取原始字典的所有键
@@ -121,7 +123,20 @@ def write_excel2(xmmc, ai_read_text, kw):
     # trans_df = existing_df.T.reset_index()
     # trans_df.to_excel(file_path, index=False, sheet_name='信息表')
 
+
 def format_excel_file(file_path):
+    # 加载工作簿
+    wb = load_workbook(file_path)
+    ws = wb.active
+
+    ws.freeze_panes = 'A2'
+
+    # 保存文件
+    wb.save(file_path)
+    logger.info("Excel文件格式设置完成！")
+
+
+def format_excel_file2(file_path):
     # 加载工作簿
     wb = load_workbook(file_path)
     ws = wb.active
@@ -167,7 +182,7 @@ def format_excel_file(file_path):
     logger.info("Excel文件格式设置完成！")
 
 
-def update_content(project_name_list, iframe_locator, context, keyword, old_time, page_num):
+def update_content(project_name_list, iframe_locator, context, keyword, old_time, now_time, page_num):
     project_name = None
     baojiarenzigetiaojian = None
     xunjiafangshi = None
@@ -175,6 +190,8 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
     fuwushijian = None
     baojiajiezhishijian = None
     tmp_new_time = None
+
+    logger.info(f"开始处理关键词 '{keyword}' 的项目列表，共 {len(project_name_list)} 个项目")
 
     for i in range(len(project_name_list)):
         try:
@@ -245,7 +262,6 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                         conditions_met["baojiajiezhishijian"] = True
 
                 all_conditions_met = all(conditions_met.values())
-
                 if all_conditions_met:
                     logger.info("项目信息完整，符合条件，开始下载PDF")
                     # ------------------------下载pdf-----------------------
@@ -258,7 +274,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                     except Exception as e:
                         logger.error(f"未搜索到采购单,请检查: {project_name}, 错误: {e}")
                         write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
-                                    baojiajiezhishijian, fabushijian, keyword, '否')
+                                    baojiajiezhishijian, fabushijian, keyword, '否', now_time)
                         page3.close()
                         continue
 
@@ -294,7 +310,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                         download.save_as(file_path)
                         logger.info(f"PDF文件已下载到: {file_path}")
                         write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
-                                    baojiajiezhishijian, fabushijian, keyword, '是')
+                                    baojiajiezhishijian, fabushijian, keyword, '是', now_time)
 
                     except Exception as e:
                         try:
@@ -329,7 +345,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                                         download.save_as(file_path)
                                         logger.info(f"WORD文件已下载到: {file_path}")
                                 write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei,
-                                            fuwushijian, baojiajiezhishijian, fabushijian, keyword, '是')
+                                            fuwushijian, baojiajiezhishijian, fabushijian, keyword, '是', now_time)
                             except Exception as e:
                                 logger.info(f"页面下载按钮版面变化导致错误: {e}")
                             new_page.close()
@@ -338,14 +354,14 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                             logger.info(f"未知错误: {e}")
                             logger.info(f"未搜索到 {project_name} 相关下载文件网页")
                             write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
-                                        baojiajiezhishijian, fabushijian, keyword, '否')
+                                        baojiajiezhishijian, fabushijian, keyword, '否', now_time)
                             continue
                     # ------------------------下载pdf----------------------
                     logger.info("新数据更新成功")
                 else:
                     logger.warning("项目信息不完整，不符合条件")
             else:
-                logger.info("数据无需更新，跳过处理")
+                logger.info(f"{keyword} 数据无需更新，跳过处理")
                 page3.close()
                 break
             page3.close()
@@ -360,7 +376,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
     return tmp_new_time
 
 
-def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
+def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url, now_time):
     logger.info("开始执行下载任务")
     with sync_playwright() as p:
         try:
@@ -395,7 +411,7 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
                 logger.info(f"{keyword} 项目数量 共 {total_page} 页")
 
                 if len(project_name_list) == 0:
-                    logger.info("没有网页数据，跳过搜索下一个关键词")
+                    logger.info("没有网页数据")
                     continue
                 else:
                     if not os.path.exists(os.path.join(os.getcwd(), keyword, fabu_time_file)):
@@ -419,15 +435,14 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
                             logger.info(f"读取 public_time.txt 文件时间，该时间为当前时间的前5天: {old_fabu_time}")
 
                         # 正常遍历内容
-                        tmp_time = update_content(project_name_list, iframe_locator, context, keyword, old_time, 1)
+                        tmp_time = update_content(project_name_list, iframe_locator, context, keyword, old_time, now_time, 1)
                         # 下一页功能实现
                         for i in range(total_page - 1):
                             logger.info(f"开始处理 {keyword} 第 {i + 2} 页")
                             page.locator("#notice iframe").content_frame.get_by_text("下一页").click()
                             iframe_locator = page.frame_locator("iframe[src='https://gd-prod.cn-beijing.oss.aliyuncs.com/upload/cms/column/inquireListOne/index.html']")
                             project_name_list = iframe_locator.locator('[class="c_href"]').all_text_contents()
-                            update_content(project_name_list, iframe_locator, context, keyword, old_time, i + 2)
-                            logger.info(f"{keyword} 第 {i + 2} 页处理完成")
+                            update_content(project_name_list, iframe_locator, context, keyword, old_time, now_time, i + 2)
                         with open(os.path.join(os.getcwd(), keyword, fabu_time_file), 'w', encoding='utf-8') as file:
                             file.write(tmp_time)
                         logger.info(f"更新 {keyword} public_time.txt 文件时间: {tmp_time}")
@@ -440,17 +455,20 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
                             old_time = datetime.strptime(old_fabu_time, "%Y-%m-%d %H:%M:%S")
                         logger.info(f"读取 {keyword} public_time 文件时间 {old_time}")
                         # 正常遍历内容
-                        tmp_time2 = update_content(project_name_list, iframe_locator, context, keyword, old_time, 1)
+                        tmp_time2 = update_content(project_name_list, iframe_locator, context, keyword, old_time, now_time, 1)
+                        logger.info(f"2更新 {keyword} public_time.txt 文件时间: {tmp_time2}")
                         # 下一页功能实现
                         for i in range(total_page - 1):
                             page.locator("#notice iframe").content_frame.get_by_text("下一页").click()
                             iframe_locator = page.frame_locator(
                                 "iframe[src='https://gd-prod.cn-beijing.oss.aliyuncs.com/upload/cms/column/inquireListOne/index.html']")
                             project_name_list = iframe_locator.locator('[class="c_href"]').all_text_contents()
-                            update_content(project_name_list, iframe_locator, context, keyword, old_time, i + 2)
+                            update_content(project_name_list, iframe_locator, context, keyword, old_time, now_time, i + 2)
                         with open(os.path.join(os.getcwd(), keyword, fabu_time_file), 'w', encoding='utf-8') as file:
                             file.write(tmp_time2)
-            logger.info("所有关键词处理完成")
+
+                format_excel_file(os.path.join(os.getcwd(), keyword) + '/' + f'01_招标网站智能搜索结果({keyword}).xlsx')
+            logger.info("所有关键词项目下载完成")
 
         except Exception as e:
             logger.error(f"执行下载任务时发生错误: {str(e)}")
@@ -463,6 +481,7 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url):
 
 
 def main(keywords_list):
+    now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     is_login_require = False
     main_folder = keywords_list
     # 账户cookie登录逻辑
@@ -530,7 +549,7 @@ def main(keywords_list):
     if is_login_require:
         dialog = CustomDialog("账户登陆状态", "账户登陆成功True,开始收集数据和下载pdf")
         dialog.exec()
-        download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url)
+        download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url, now_time)
         dialog = CustomDialog("账户登陆状态", "收集数据和下载pdf完成")
         dialog.exec()
     else:
@@ -539,8 +558,10 @@ def main(keywords_list):
 
 
 def main2(keywords_list):
-    dialog = CustomDialog("程序执行中,请等待...", "程序执行中，请等待...")
-    dialog.show()
+    dialog = CustomDialog("程序执行提示", "点击按钮开始执行AI理解(过程中不要点击任何文件)")
+    dialog.exec()
+
+    now_time2 = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     for keyword in keywords_list:
         if not os.path.exists(os.path.join(keyword, f'附件({keyword})', '01_AI未解析')):
@@ -600,7 +621,7 @@ def main2(keywords_list):
                                 json_str = matches[0].replace('\n', '')
                                 json_dict = json.loads(json_str)
                                 # 写入到excel文件
-                                write_excel2((f), json_dict, keyword)
+                                write_excel2((f), json_dict, keyword, now_time2)
                             except Exception as e:
                                 logger.info(f"工作流调用失败: {e}")
                                 logger.info(f"响应状态码: {response.status_code}")
@@ -630,7 +651,7 @@ def main2(keywords_list):
                                 # ai阅读理解pdf文件
                                 with zipfile.ZipFile(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f), 'r') as zip_ref:
                                     zip_ref.extractall("临时文件")
-                                    logger.info("成功解压到: 临时文件")
+                                    logger.info(f"成功解压到: 临时文件")
                                 # AI理解pdf、docx内容
                                 for pdf_file in os.listdir('临时文件'):
                                     if pdf_file.endswith('.pdf') and '商务' in pdf_file.split('.')[0]:
@@ -676,7 +697,7 @@ def main2(keywords_list):
                                     json_str = matches[0].replace('\n', '')
                                     json_dict = json.loads(json_str)
                                     # 写入到excel文件
-                                    write_excel2((f), json_dict, keyword)
+                                    write_excel2((f), json_dict, keyword, now_time2)
                                 except Exception as e:
                                     logger.info(f"工作流调用失败: {e}")
                                     logger.info(f"响应状态码: {response.status_code}")
@@ -704,11 +725,12 @@ def main2(keywords_list):
                                 continue
                         else:
                             logger.info(f"{f} 是其他类型文件,暂不处理")
-                format_excel_file(os.path.join(os.getcwd(), keyword) + '/' + f'02_招标文件智能解析结果({keyword}).xlsx')
+                format_excel_file2(os.path.join(os.getcwd(), keyword) + '/' + f'02_招标文件智能解析结果({keyword}).xlsx')
 
 
 if __name__ == '__main__':
 
+    # datetime.now.strftime("%Y-%m-%d %H:%M:%S")
     keywords_list = ['软件', '运维', '维保']
     try:
         main(keywords_list)
