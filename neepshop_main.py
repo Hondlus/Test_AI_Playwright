@@ -12,6 +12,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
 import time
+import traceback
 
 
 def setup_logging():
@@ -44,6 +45,8 @@ excel_url = 'https://www.neep.shop/html/portal/notice.html?type=enquiryOrderAnnc
 pdf_url = 'https://www.neep.shop/dist/index.html#/purchaserNoticeIndex#/purchaserNoticeIndex?autoId=290201'
 fabu_time_file = 'public_time.txt'
 logger = setup_logging()
+# error_msg = traceback.format_exc()
+# logger.info(error_msg)
 
 api_key = "fastgpt-fCYCYBicNtBob8rzrytnbB60rivhEduElK0wWzBVCE2AB3RxJqKc0kZ9sURcPaNc"
 base_url = "http://192.168.50.81:3100/ragai"
@@ -562,16 +565,30 @@ def main2(keywords_list):
     dialog = CustomDialog("程序执行提示", "点击按钮开始执行AI理解(过程中不要点击任何文件)")
     dialog.exec()
 
+    is_parse = True
     now_time2 = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if not os.path.exists('临时文件'):
+        os.makedirs('临时文件')
+        logger.info(f"创建临时文件夹")
+    else:
+        logger.info(f"临时文件夹已存在")
 
     for keyword in keywords_list:
         if not os.path.exists(os.path.join(keyword, f'附件({keyword})', '01_AI未解析')):
             logger.info(f"{keyword}-f'附件({keyword})'-01_AI未解析 文件夹不存在,请检查相关数据")
+            dialog = CustomDialog("程序执行提示", f"{keyword}-f'附件({keyword})'-01_AI未解析 文件夹不存在,请检查相关数据")
+            dialog.exec()
         else:
             if len(os.listdir(os.path.join(keyword, f'附件({keyword})', '01_AI未解析'))) == 0:
                 logger.info(f"{keyword}-f'附件({keyword})'-01_AI未解析 文件夹为空, 无需更新")
+                dialog = CustomDialog("程序执行提示", f"{keyword}-f'附件({keyword})'-01_AI未解析 文件夹为空, 无需更新")
+                dialog.exec()
             else:
                 for f in os.listdir(os.path.join(keyword, f'附件({keyword})', '01_AI未解析')):
+                    max_retries = 10
+                    retry_count = 0
+                    success = False
                     item_path = os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f)
                     if os.path.isdir(item_path):
                         logger.info(f"{f} 是文件夹,开始处理")
@@ -589,32 +606,48 @@ def main2(keywords_list):
                                     input_text = result.text_content[:19999]
                                     jishu_result_format = f"{separator}\n# 《{pdf_file}》\n{input_text}"
                             result_format = shangwu_result_format + jishu_result_format
-                            """
-                            步骤2：调用工作流API，传入文件ID和输入文本
-                            """
-                            url = f"{base_url}/api/v1/chat/completions"
-                            headers = {
-                                'Authorization': f'Bearer {api_key}',
-                                'Content-Type': 'application/json'
-                            }
-                            # 构建请求数据体
-                            data = {
-                                "model": "fastgpt-workflow",  # 或者其他指定的模型名
-                                "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
-                                "workflowId": workflow_id,  # 指定要运行的工作流
-                                "messages": [
-                                    {
-                                        "role": "user",
-                                        "content": result_format,
+                            # 只有当两个文件都存在时才组合结果
+                            # if shangwu_result_format and jishu_result_format:
+                            #     result_format = shangwu_result_format + jishu_result_format
+                            #     print("两个文件都已处理完成")
+                            # elif shangwu_result_format:
+                            #     print("只找到商务文件，跳过处理")
+                            # elif jishu_result_format:
+                            #     print("只找到技术文件，跳过处理")
+                            # else:
+                            #     print("未找到商务或技术PDF文件")
+                        except Exception as e:
+                            logger.info(f"AI文档解析文件夹内容时发生错误: {e}")
+
+                        """
+                        步骤2：调用工作流API，传入文件ID和输入文本
+                        """
+                        url = f"{base_url}/api/v1/chat/completions"
+                        headers = {
+                            'Authorization': f'Bearer {api_key}',
+                            'Content-Type': 'application/json'
+                        }
+                        # 构建请求数据体
+                        data = {
+                            "model": "fastgpt-workflow",  # 或者其他指定的模型名
+                            "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
+                            "workflowId": workflow_id,  # 指定要运行的工作流
+                            "messages": [
+                                {
+                                    "role": "user",
+                                    "content": result_format,
 
 
-                                        # 此处是关键：在消息中关联已上传的文件
-                                        "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
-                                    }
-                                ]
-                            }
+                                    # 此处是关键：在消息中关联已上传的文件
+                                    "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
+                                }
+                            ]
+                        }
+                        while retry_count < max_retries and not success:
                             try:
-                                response = requests.post(url, json=data, headers=headers)
+                                retry_count += 1
+                                logger.info(f"第 {retry_count} 次尝试...")
+                                response = requests.post(url, json=data, headers=headers, timeout=10)
                                 logger.info(f"响应状态码: {response.status_code}")
                                 logger.info(f"响应内容: {response.text}")
                                 response.raise_for_status()
@@ -623,8 +656,20 @@ def main2(keywords_list):
                                 json_str = matches[0].replace('\n', '')
                                 json_dict = json.loads(json_str)
                                 logger.info("工作流调用成功！")
+                                success = True
+                                break  # 成功则跳出循环
+
                             except Exception as e:
-                                logger.info(f"工作流调用失败: {e}")
+                                logger.warning(f"第 {retry_count} 次尝试失败: {e}")
+                                if retry_count < max_retries:
+                                    logger.info("等待2秒后重试...")
+                                    time.sleep(2)
+                                else:
+                                    logger.error(f"工作流调用失败，已重试 {max_retries} 次")
+
+                        if success:
+                            for file in os.listdir('临时文件'):
+                                os.remove('临时文件' + '/' + file)
 
                             logger.info(f'{keyword} - 文件夹数据更新成功')
 
@@ -639,15 +684,8 @@ def main2(keywords_list):
                                 shutil.move(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f),
                                             os.path.join(keyword, f'附件({keyword})', '03_AI已解析(可承接)'))
 
-                        except Exception as e:
-                            logger.info(f"AI文档解析文件夹内容时发生错误: {e}")
-                            for file in os.listdir('临时文件'):
-                                os.remove('临时文件' + '/' + file)
-                            dialog = CustomDialog("程序错误提示", "网络状态不佳，请检查网络，再重新运行")
-                            dialog.exec()
-
-                        # 写入到excel文件
-                        write_excel2((f), json_dict, keyword, now_time2)
+                            # 写入到excel文件
+                            write_excel2((f), json_dict, keyword, now_time2)
 
                     elif os.path.isfile(item_path):
                         if f.lower().endswith('.zip'):
@@ -660,9 +698,6 @@ def main2(keywords_list):
                                     logger.info(f"成功解压到: 临时文件")
                                 # AI理解pdf、docx内容
                                 for pdf_file in os.listdir('临时文件'):
-                                    max_retries = 10
-                                    retry_count = 0
-                                    success = False
                                     if pdf_file.endswith('.pdf') and '商务' in pdf_file.split('.')[0]:
                                         md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
                                         result = md.convert('临时文件' + '/' + pdf_file)
@@ -674,6 +709,16 @@ def main2(keywords_list):
                                         input_text = result.text_content[:19999]
                                         jishu_result_format = f"{separator}\n# 《{pdf_file}》\n{input_text}"
                                 result_format = shangwu_result_format + jishu_result_format
+                                # 只有当两个文件都存在时才组合结果
+                                # if shangwu_result_format and jishu_result_format:
+                                #     result_format = shangwu_result_format + jishu_result_format
+                                #     print("两个文件都已处理完成")
+                                # elif shangwu_result_format:
+                                #     print("只找到商务文件，跳过处理")
+                                # elif jishu_result_format:
+                                #     print("只找到技术文件，跳过处理")
+                                # else:
+                                #     print("未找到商务或技术PDF文件")
                             except Exception as e:
                                 logger.info(f"AI文档解析zip内容时发生错误: {e}")
 
@@ -703,7 +748,7 @@ def main2(keywords_list):
                                 try:
                                     retry_count += 1
                                     logger.info(f"第 {retry_count} 次尝试...")
-                                    response = requests.post(url, json=data, headers=headers)
+                                    response = requests.post(url, json=data, headers=headers, timeout=10)
                                     logger.info(f"响应状态码: {response.status_code}")
                                     logger.info(f"响应内容: {response.text}")
                                     response.raise_for_status()
@@ -743,14 +788,21 @@ def main2(keywords_list):
                                 # 写入到excel文件
                                 write_excel2((f), json_dict, keyword, now_time2)
                             else:
-                                logger.error(f"请检查网络")
+                                logger.error(f"{f} 文件未成功解析，请检查网络或其他原因")
+                                is_parse = False
 
-                        else:
-                            logger.info(f"{f} 是其他类型文件,暂不处理")
+                    else:
+                        logger.info(f"{f} 是其他类型文件,暂不处理")
+
                 format_excel_file2(os.path.join(os.getcwd(), keyword) + '/' + f'02_招标文件智能解析结果({keyword}).xlsx')
 
     for file in os.listdir('临时文件'):
         os.remove('临时文件' + '/' + file)
+
+    if not is_parse:
+        dialog = CustomDialog("程序执行提示", "有文件解析未成功，请检查网络或其他原因")
+        dialog.exec()
+
 
 if __name__ == '__main__':
 
