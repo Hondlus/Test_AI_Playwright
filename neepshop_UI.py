@@ -2,6 +2,7 @@ import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QMessageBox, QDialog, QHBoxLayout)
 import re
 import neepshop_main
+import traceback
 
 
 # 自定义弹窗
@@ -41,8 +42,8 @@ class MainWindow(QMainWindow, QDialog):
         label = QLabel("搜索关键字(多个关键字中间用逗号隔开): ")
         # 创建输入框
         self.keyword_input = QLineEdit()
-        self.keyword_input.setText("软件, 运维, 维保")
-        self.keyword_input.setPlaceholderText("例如: 软件, 运维, 维保")
+        self.keyword_input.setText("系统, 软件, 运维, 维保")
+        self.keyword_input.setPlaceholderText("例如: 系统, 软件, 运维, 维保")
         keyword_layout.addWidget(label)
         keyword_layout.addWidget(self.keyword_input)
         layout.addLayout(keyword_layout)
@@ -115,7 +116,9 @@ class MainWindow(QMainWindow, QDialog):
             self.main_function(self.keyword_list)
             print(f"主函数1-执行完成")
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(e)}")
+            # QMessageBox.critical(self, "错误", f"主函数1执行过程中出现错误: {str(e)}")
+            error_msg = traceback.format_exc()
+            QMessageBox.critical(self, "错误", f"主函数1执行过程中出现错误: {str(error_msg)}")
 
     def execute_main_function2(self):
         """执行主函数2"""
@@ -133,7 +136,9 @@ class MainWindow(QMainWindow, QDialog):
             self.main_function2(self.keyword_list)
             print(f"主函数2执行完成")
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(e)}")
+            # QMessageBox.critical(self, "错误", f"主函数2执行过程中出现错误: {str(e)}")
+            error_msg = traceback.format_exc()
+            QMessageBox.critical(self, "错误", f"主函数2执行过程中出现错误: {str(error_msg)}")
 
     def execute_onekey_function(self):
         """一键执行函数"""
@@ -152,7 +157,9 @@ class MainWindow(QMainWindow, QDialog):
             self.main_function2(self.keyword_list)
             print(f"一键执行完成")
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(e)}")
+            # QMessageBox.critical(self, "错误", f"一键执行过程中出现错误: {str(e)}")
+            error_msg = traceback.format_exc()
+            QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(error_msg)}")
 
 
 def main():
