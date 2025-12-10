@@ -11,6 +11,7 @@ import shutil
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
+import time
 
 
 def setup_logging():
@@ -272,7 +273,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                         page3.get_by_role("button", name="搜索").click()
                         page3.get_by_role("row", name="序号 采购单名称 采购单编号 收到的澄清 日期/周期 发布时间 报价(名)截止时间 采购机构 采购类别").get_by_label("").check(timeout=2000)
                     except Exception as e:
-                        logger.error(f"未搜索到采购单,请检查: {project_name}, 错误: {e}")
+                        logger.info(f"未搜索到采购单,请检查: {project_name}, 错误: {e}")
                         write_excel(project_name, baojiarenzigetiaojian, xunjiafangshi, wuzifenlei, fuwushijian,
                                     baojiajiezhishijian, fabushijian, keyword, '否', now_time)
                         page3.close()
@@ -287,7 +288,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                             try:
                                 page3.get_by_role("button", name="确定").click(timeout=1000)
                             except Exception as e:
-                                logger.error(f"没有多余弹窗按钮A: {e}")
+                                logger.info(f"没有多余弹窗按钮A: {e}")
 
                         logger.info("页面发生了跳转, 加载页面A:报编")
                         try:
@@ -321,7 +322,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
                                 try:
                                     page3.get_by_role("button", name="确定").click(timeout=5000)
                                 except Exception as e:
-                                    logger.error(f"没有多余弹窗按钮B: {e}")
+                                    logger.info(f"没有多余弹窗按钮B: {e}")
 
                             new_page = new_page_info.value
                             logger.info("加载页面B:供应商询比价管理")
@@ -367,7 +368,7 @@ def update_content(project_name_list, iframe_locator, context, keyword, old_time
             page3.close()
 
         except Exception as e:
-            logger.error(f"处理项目 '{project_name_list[i]}' 时发生错误: {str(e)}")
+            logger.info(f"处理项目 '{project_name_list[i]}' 时发生错误: {str(e)}")
             if 'page3' in locals():
                 page3.close()
             continue
@@ -614,20 +615,18 @@ def main2(keywords_list):
                             }
                             try:
                                 response = requests.post(url, json=data, headers=headers)
+                                logger.info(f"响应状态码: {response.status_code}")
+                                logger.info(f"响应内容: {response.text}")
                                 response.raise_for_status()
                                 result = response.json()
-                                logger.info("工作流调用成功！")
                                 matches = re.findall(pattern, result["choices"][0]["message"]["content"])
                                 json_str = matches[0].replace('\n', '')
                                 json_dict = json.loads(json_str)
-                                # 写入到excel文件
-                                write_excel2((f), json_dict, keyword, now_time2)
+                                logger.info("工作流调用成功！")
                             except Exception as e:
                                 logger.info(f"工作流调用失败: {e}")
-                                logger.info(f"响应状态码: {response.status_code}")
-                                logger.info(f"响应内容: {response.text}")
 
-                            logger.info(f'{keyword} - 数据更新成功')
+                            logger.info(f'{keyword} - 文件夹数据更新成功')
 
                             if '不可承接' in json_dict['业务承接判定']:
                                 if not os.path.exists(os.path.join(keyword, f'附件({keyword})', '02_AI已解析(不可承接)')):
@@ -641,12 +640,19 @@ def main2(keywords_list):
                                             os.path.join(keyword, f'附件({keyword})', '03_AI已解析(可承接)'))
 
                         except Exception as e:
-                            logger.error(f"AI文档解析文件夹内容时发生错误: {e}")
-                            continue
+                            logger.info(f"AI文档解析文件夹内容时发生错误: {e}")
+                            for file in os.listdir('临时文件'):
+                                os.remove('临时文件' + '/' + file)
+                            dialog = CustomDialog("程序错误提示", "网络状态不佳，请检查网络，再重新运行")
+                            dialog.exec()
+
+                        # 写入到excel文件
+                        write_excel2((f), json_dict, keyword, now_time2)
 
                     elif os.path.isfile(item_path):
                         if f.lower().endswith('.zip'):
                             logger.info(f"{f} 是ZIP文件, 开始处理")
+
                             try:
                                 # ai阅读理解pdf文件
                                 with zipfile.ZipFile(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f), 'r') as zip_ref:
@@ -654,6 +660,9 @@ def main2(keywords_list):
                                     logger.info(f"成功解压到: 临时文件")
                                 # AI理解pdf、docx内容
                                 for pdf_file in os.listdir('临时文件'):
+                                    max_retries = 10
+                                    retry_count = 0
+                                    success = False
                                     if pdf_file.endswith('.pdf') and '商务' in pdf_file.split('.')[0]:
                                         md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
                                         result = md.convert('临时文件' + '/' + pdf_file)
@@ -665,49 +674,60 @@ def main2(keywords_list):
                                         input_text = result.text_content[:19999]
                                         jishu_result_format = f"{separator}\n# 《{pdf_file}》\n{input_text}"
                                 result_format = shangwu_result_format + jishu_result_format
-                                """
-                                步骤2：调用工作流API，传入文件ID和输入文本
-                                """
-                                url = f"{base_url}/api/v1/chat/completions"
-                                headers = {
-                                    'Authorization': f'Bearer {api_key}',
-                                    'Content-Type': 'application/json'
-                                }
-                                # 构建请求数据体
-                                data = {
-                                    "model": "fastgpt-workflow",  # 或者其他指定的模型名
-                                    "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
-                                    "workflowId": workflow_id,  # 指定要运行的工作流
-                                    "messages": [
-                                        {
-                                            "role": "user",
-                                            "content": result_format,
-                                            # 此处是关键：在消息中关联已上传的文件
-                                            "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
-                                        }
-                                    ]
-                                }
+                            except Exception as e:
+                                logger.info(f"AI文档解析zip内容时发生错误: {e}")
 
+                            """
+                            步骤2：调用工作流API，传入文件ID和输入文本
+                            """
+                            url = f"{base_url}/api/v1/chat/completions"
+                            headers = {
+                                'Authorization': f'Bearer {api_key}',
+                                'Content-Type': 'application/json'
+                            }
+                            # 构建请求数据体
+                            data = {
+                                "model": "fastgpt-workflow",  # 或者其他指定的模型名
+                                "chatId": chat_id,  # 用于保持会话的连续性:cite[9]
+                                "workflowId": workflow_id,  # 指定要运行的工作流
+                                "messages": [
+                                    {
+                                        "role": "user",
+                                        "content": result_format,
+                                        # 此处是关键：在消息中关联已上传的文件
+                                        "files": [file_id]  # 假设API支持通过`files`字段传递文件ID列表
+                                    }
+                                ]
+                            }
+                            while retry_count < max_retries and not success:
                                 try:
+                                    retry_count += 1
+                                    logger.info(f"第 {retry_count} 次尝试...")
                                     response = requests.post(url, json=data, headers=headers)
+                                    logger.info(f"响应状态码: {response.status_code}")
+                                    logger.info(f"响应内容: {response.text}")
                                     response.raise_for_status()
                                     result = response.json()
-                                    logger.info("工作流调用成功！")
                                     matches = re.findall(pattern, result["choices"][0]["message"]["content"])
                                     json_str = matches[0].replace('\n', '')
                                     json_dict = json.loads(json_str)
-                                    # 写入到excel文件
-                                    write_excel2((f), json_dict, keyword, now_time2)
-                                except Exception as e:
-                                    logger.info(f"工作流调用失败: {e}")
-                                    logger.info(f"响应状态码: {response.status_code}")
-                                    logger.info(f"响应内容: {response.text}")
+                                    logger.info("工作流调用成功！")
+                                    success = True
+                                    break  # 成功则跳出循环
 
-                                # 4. 删除临时文件中的所有文件
+                                except Exception as e:
+                                    logger.warning(f"第 {retry_count} 次尝试失败: {e}")
+                                    if retry_count < max_retries:
+                                        logger.info("等待2秒后重试...")
+                                        time.sleep(2)
+                                    else:
+                                        logger.error(f"工作流调用失败，已重试 {max_retries} 次")
+
+                            if success:
                                 for file in os.listdir('临时文件'):
                                     os.remove('临时文件' + '/' + file)
 
-                                logger.info(f'{keyword} - 数据更新成功')
+                                logger.info(f'{keyword} - ZIP数据更新成功')
 
                                 if '不可承接' in json_dict['业务承接判定']:
                                     if not os.path.exists(os.path.join(keyword, f'附件({keyword})', '02_AI已解析(不可承接)')):
@@ -720,20 +740,24 @@ def main2(keywords_list):
                                     shutil.move(os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f),
                                                 os.path.join(keyword, f'附件({keyword})', '03_AI已解析(可承接)'))
 
-                            except Exception as e:
-                                logger.error(f"AI文档解析zip内容时发生错误: {e}")
-                                continue
+                                # 写入到excel文件
+                                write_excel2((f), json_dict, keyword, now_time2)
+                            else:
+                                logger.error(f"请检查网络")
+
                         else:
                             logger.info(f"{f} 是其他类型文件,暂不处理")
                 format_excel_file2(os.path.join(os.getcwd(), keyword) + '/' + f'02_招标文件智能解析结果({keyword}).xlsx')
 
+    for file in os.listdir('临时文件'):
+        os.remove('临时文件' + '/' + file)
 
 if __name__ == '__main__':
 
-    # datetime.now.strftime("%Y-%m-%d %H:%M:%S")
-    keywords_list = ['软件', '运维', '维保']
+    # keywords_list = ['软件', '运维', '维保']
+    keywords_list = ['系统']
     try:
-        main(keywords_list)
+        # main(keywords_list)
         main2(keywords_list)
     except KeyboardInterrupt:
         logger.info("程序被用户中断")
