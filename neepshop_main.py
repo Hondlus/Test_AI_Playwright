@@ -586,7 +586,7 @@ def main2(keywords_list):
                 dialog.exec()
             else:
                 for f in os.listdir(os.path.join(keyword, f'附件({keyword})', '01_AI未解析')):
-                    max_retries = 10
+                    max_retries = 5
                     retry_count = 0
                     success = False
                     item_path = os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f)
@@ -647,7 +647,7 @@ def main2(keywords_list):
                             try:
                                 retry_count += 1
                                 logger.info(f"第 {retry_count} 次尝试...")
-                                response = requests.post(url, json=data, headers=headers, timeout=10)
+                                response = requests.post(url, json=data, headers=headers, timeout=(15, 15))
                                 logger.info(f"响应状态码: {response.status_code}")
                                 logger.info(f"响应内容: {response.text}")
                                 response.raise_for_status()
@@ -662,8 +662,8 @@ def main2(keywords_list):
                             except Exception as e:
                                 logger.warning(f"第 {retry_count} 次尝试失败: {e}")
                                 if retry_count < max_retries:
-                                    logger.info("等待2秒后重试...")
-                                    time.sleep(2)
+                                    logger.info("请等待 15 秒后重试...")
+                                    time.sleep(15)
                                 else:
                                     logger.error(f"工作流调用失败，已重试 {max_retries} 次")
 
@@ -748,7 +748,7 @@ def main2(keywords_list):
                                 try:
                                     retry_count += 1
                                     logger.info(f"第 {retry_count} 次尝试...")
-                                    response = requests.post(url, json=data, headers=headers, timeout=10)
+                                    response = requests.post(url, json=data, headers=headers, timeout=(15, 15))
                                     logger.info(f"响应状态码: {response.status_code}")
                                     logger.info(f"响应内容: {response.text}")
                                     response.raise_for_status()
@@ -763,8 +763,8 @@ def main2(keywords_list):
                                 except Exception as e:
                                     logger.warning(f"第 {retry_count} 次尝试失败: {e}")
                                     if retry_count < max_retries:
-                                        logger.info("等待2秒后重试...")
-                                        time.sleep(2)
+                                        logger.info("等待15秒后重试...")
+                                        time.sleep(15)
                                     else:
                                         logger.error(f"工作流调用失败，已重试 {max_retries} 次")
 
