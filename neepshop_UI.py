@@ -3,9 +3,9 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QL
 import re
 import neepshop_main
 import traceback
+from logger import logger
 
 
-# 自定义弹窗
 class CustomDialog(QDialog):
     def __init__(self, windowtitle, textlabel):
         super().__init__()
@@ -119,6 +119,7 @@ class MainWindow(QMainWindow, QDialog):
             # QMessageBox.critical(self, "错误", f"主函数1执行过程中出现错误: {str(e)}")
             error_msg = traceback.format_exc()
             QMessageBox.critical(self, "错误", f"主函数1执行过程中出现错误: {str(error_msg)}")
+            logger.info(f"主函数1报错: {error_msg}")
 
     def execute_main_function2(self):
         """执行主函数2"""
@@ -139,6 +140,7 @@ class MainWindow(QMainWindow, QDialog):
             # QMessageBox.critical(self, "错误", f"主函数2执行过程中出现错误: {str(e)}")
             error_msg = traceback.format_exc()
             QMessageBox.critical(self, "错误", f"主函数2执行过程中出现错误: {str(error_msg)}")
+            logger.info(f"主函数2报错: {error_msg}")
 
     def execute_onekey_function(self):
         """一键执行函数"""
@@ -160,7 +162,7 @@ class MainWindow(QMainWindow, QDialog):
             # QMessageBox.critical(self, "错误", f"一键执行过程中出现错误: {str(e)}")
             error_msg = traceback.format_exc()
             QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(error_msg)}")
-
+            logger.info(f"一键执行报错: {error_msg}")
 
 def main():
     app = QApplication(sys.argv)
