@@ -3,7 +3,6 @@ import os, sys, re, json
 import pandas as pd
 from neepshop_UI import CustomDialog
 from datetime import datetime, timedelta
-import logging
 from markitdown import MarkItDown
 import zipfile
 import requests
@@ -12,31 +11,9 @@ from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
 import time
+from logger import logger
 import traceback
 
-
-def setup_logging():
-    """配置日志系统"""
-    # 创建logs目录
-    log_dir = 'logs'
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    # 设置日志文件名（按日期）
-    log_filename = datetime.now().strftime('neepshop_%Y%m%d-%H%M%S.log')
-    log_filepath = os.path.join(log_dir, log_filename)
-
-    # 配置日志格式
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(funcName)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_filepath, encoding='utf-8'),
-            logging.StreamHandler(sys.stdout)  # 同时输出到控制台
-        ]
-    )
-
-    return logging.getLogger(__name__)
 
 cookie_json = 'neepshop.json'
 success_url = 'https://www.neep.shop/'
@@ -44,9 +21,6 @@ login_url = 'https://cooperation.ceic.com/login/index?client_id=oauth-neep&redir
 excel_url = 'https://www.neep.shop/html/portal/notice.html?type=enquiryOrderAnnc&nodeurl=callback_list_enquiry_order&noticeMoreUrl=https://gd-prod.cn-beijing.oss.aliyuncs.com/upload/cms/column/inquireListOne/index.html&pageTag=undefined&menu_code=&parent_menu_code=&root_menu_code='
 pdf_url = 'https://www.neep.shop/dist/index.html#/purchaserNoticeIndex#/purchaserNoticeIndex?autoId=290201'
 fabu_time_file = 'public_time.txt'
-logger = setup_logging()
-# error_msg = traceback.format_exc()
-# logger.info(error_msg)
 
 api_key = "fastgpt-fCYCYBicNtBob8rzrytnbB60rivhEduElK0wWzBVCE2AB3RxJqKc0kZ9sURcPaNc"
 base_url = "http://192.168.50.81:3100/ragai"
