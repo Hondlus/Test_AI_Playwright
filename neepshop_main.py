@@ -563,6 +563,7 @@ def main2(keywords_list):
                     max_retries = 5
                     retry_count = 0
                     success = False
+                    result_format = None
                     item_path = os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f)
                     if os.path.isdir(item_path):
                         logger.info(f"{f} 是文件夹,开始处理")
