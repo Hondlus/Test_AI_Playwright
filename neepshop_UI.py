@@ -116,9 +116,9 @@ class MainWindow(QMainWindow, QDialog):
             self.main_function(self.keyword_list)
             print(f"主函数1-执行完成")
         except Exception as e:
-            # QMessageBox.critical(self, "错误", f"主函数1执行过程中出现错误: {str(e)}")
+            QMessageBox.critical(self, "错误", f"主函数1执行过程中出现错误: {str(e)}")
             error_msg = traceback.format_exc()
-            QMessageBox.critical(self, "错误", f"主函数1执行过程中出现错误: {str(error_msg)}")
+            # QMessageBox.critical(self, "错误", f"主函数1执行过程中出现错误: {str(error_msg)}")
             logger.info(f"主函数1报错: {error_msg}")
 
     def execute_main_function2(self):
@@ -137,9 +137,9 @@ class MainWindow(QMainWindow, QDialog):
             self.main_function2(self.keyword_list)
             print(f"主函数2执行完成")
         except Exception as e:
-            # QMessageBox.critical(self, "错误", f"主函数2执行过程中出现错误: {str(e)}")
+            QMessageBox.critical(self, "错误", f"主函数2执行过程中出现错误: {str(e)}")
             error_msg = traceback.format_exc()
-            QMessageBox.critical(self, "错误", f"主函数2执行过程中出现错误: {str(error_msg)}")
+            # QMessageBox.critical(self, "错误", f"主函数2执行过程中出现错误: {str(error_msg)}")
             logger.info(f"主函数2报错: {error_msg}")
 
     def execute_onekey_function(self):
@@ -159,9 +159,9 @@ class MainWindow(QMainWindow, QDialog):
             self.main_function2(self.keyword_list)
             print(f"一键执行完成")
         except Exception as e:
-            # QMessageBox.critical(self, "错误", f"一键执行过程中出现错误: {str(e)}")
+            QMessageBox.critical(self, "错误", f"一键执行过程中出现错误: {str(e)}")
             error_msg = traceback.format_exc()
-            QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(error_msg)}")
+            # QMessageBox.critical(self, "错误", f"执行过程中出现错误: {str(error_msg)}")
             logger.info(f"一键执行报错: {error_msg}")
 
 def main():
