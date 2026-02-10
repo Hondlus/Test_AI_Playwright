@@ -12,7 +12,6 @@ from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
 import time
 from logger import logger
-import traceback
 
 
 cookie_json = 'neepshop.json'
@@ -97,10 +96,6 @@ def write_excel2(xmmc, ai_read_text, kw, n_t2):
         logger.error(f"写入Excel文件时发生错误: {str(e)}")
         raise
 
-    # existing_df = pd.read_excel(file_path)
-    # trans_df = existing_df.T.reset_index()
-    # trans_df.to_excel(file_path, index=False, sheet_name='信息表')
-
 
 def format_excel_file(file_path):
     # 加载工作簿
@@ -119,11 +114,6 @@ def format_excel_file2(file_path):
     wb = load_workbook(file_path)
     ws = wb.active
 
-    # --------------设置第一行列宽、背景颜色、文字颜色-----------------
-    # 冻结第一列和第二列（A列和B列）冻结第一行
-    # 冻结窗格在C1单元格，即保持A列和B列可见
-    # ws.freeze_panes = 'A2'
-    # ws.freeze_panes = 'C1'
     ws.freeze_panes = ws['C2']
 
     column_widths = [19, 17, 37, 23, 20, 76, 21, 16, 28, 28,
@@ -358,7 +348,7 @@ def download_excel_pdf(main_folder, fabu_time_file, cookie_json, excel_url, now_
     logger.info("开始执行下载任务")
     with sync_playwright() as p:
         try:
-            bro = p.chromium.launch(headless=False, slow_mo=1000)
+            bro = p.chromium.launch(headless=True, slow_mo=1000)
             context = bro.new_context(storage_state=cookie_json)
             page = context.new_page()
             logger.info("浏览器启动成功")
@@ -564,6 +554,7 @@ def main2(keywords_list):
                     retry_count = 0
                     success = False
                     result_format = None
+                    jishu_result_format = ""
                     item_path = os.path.join(keyword, f'附件({keyword})', '01_AI未解析', f)
                     if os.path.isdir(item_path):
                         logger.info(f"{f} 是文件夹,开始处理")
@@ -661,6 +652,10 @@ def main2(keywords_list):
 
                             # 写入到excel文件
                             write_excel2((f), json_dict, keyword, now_time2)
+                        else:
+                            logger.error(f"{f} 文件未成功解析，请检查网络或其他原因")
+                            # is_parse = False
+                            continue
 
                     elif os.path.isfile(item_path):
                         if f.lower().endswith('.zip'):
@@ -742,6 +737,7 @@ def main2(keywords_list):
                                         time.sleep(15)
                                     else:
                                         logger.error(f"工作流调用失败，已重试 {max_retries} 次")
+                                        continue
 
                             if success:
                                 for file in os.listdir('临时文件'):
@@ -765,11 +761,15 @@ def main2(keywords_list):
                             else:
                                 logger.error(f"{f} 文件未成功解析，请检查网络或其他原因")
                                 is_parse = False
+                                continue
 
                     else:
                         logger.info(f"{f} 是其他类型文件,暂不处理")
 
-                format_excel_file2(os.path.join(os.getcwd(), keyword) + '/' + f'02_招标文件智能解析结果({keyword}).xlsx')
+                if os.path.exists(os.path.join(os.getcwd(), keyword) + '/' + f'02_招标文件智能解析结果({keyword}).xlsx'):
+                    format_excel_file2(os.path.join(os.getcwd(), keyword) + '/' + f'02_招标文件智能解析结果({keyword}).xlsx')
+                else:
+                    continue
 
     for file in os.listdir('临时文件'):
         os.remove('临时文件' + '/' + file)
